@@ -124,37 +124,119 @@ extern "C" {
     SETJMP_FLOAT128 Xmm14;
     SETJMP_FLOAT128 Xmm15;
   } _JUMP_BUFFER;
+#elif defined(_ARM_)
+
+#define _JBLEN 28
+#define _JBTYPE int
+
+  typedef struct __JUMP_BUFFER {
+    unsigned long Frame;
+    unsigned long R4;
+    unsigned long R5;
+    unsigned long R6;
+    unsigned long R7;
+    unsigned long R8;
+    unsigned long R9;
+    unsigned long R10;
+    unsigned long R11;
+    unsigned long Sp;
+    unsigned long Pc;
+    unsigned long Fpscr;
+    unsigned long long D[8];
+  } _JUMP_BUFFER;
+#elif defined(_ARM64_)
+
+#define _JBLEN 24
+#define _JBTYPE unsigned __int64
+
+  typedef struct __JUMP_BUFFER {
+    unsigned __int64 Frame;
+    unsigned __int64 Reserved;
+    unsigned __int64 X19;
+    unsigned __int64 X20;
+    unsigned __int64 X21;
+    unsigned __int64 X22;
+    unsigned __int64 X23;
+    unsigned __int64 X24;
+    unsigned __int64 X25;
+    unsigned __int64 X26;
+    unsigned __int64 X27;
+    unsigned __int64 X28;
+    unsigned __int64 Fp;
+    unsigned __int64 Lr;
+    unsigned __int64 Sp;
+    unsigned long Fpcr;
+    unsigned long Fpsr;
+    double D[8];
+  } _JUMP_BUFFER;
+#else
+
+#define _JBLEN 1
+#define _JBTYPE int
 #endif
 #ifndef _JMP_BUF_DEFINED
   typedef _JBTYPE jmp_buf[_JBLEN];
 #define _JMP_BUF_DEFINED
 #endif
 
+  __declspec(noreturn) __attribute__ ((__nothrow__)) void __cdecl longjmp(jmp_buf _Buf, int _Value);
+
+#if (defined(_X86_) && !defined(__x86_64))
+  int __cdecl __attribute__ ((__nothrow__, __returns_twice__)) _setjmp(jmp_buf _Buf);
+  int __cdecl __attribute__ ((__nothrow__, __returns_twice__)) _setjmp3(jmp_buf _Buf, int _Count, ...);
+#else
+  #ifndef __aarch64__
+  int __cdecl __attribute__ ((__nothrow__, __returns_twice__)) _setjmp(jmp_buf _Buf, void *_Frame);
+  #endif
+  int __cdecl __attribute__ ((__nothrow__, __returns_twice__)) _setjmpex(jmp_buf _Buf, void *_Frame);
+#endif
+
+#if defined(__arm__) || defined(__aarch64__)
+  int __cdecl __attribute__ ((__nothrow__, __returns_twice__)) __mingw_setjmp(jmp_buf _Buf);
+  __declspec(noreturn) __attribute__ ((__nothrow__)) void __cdecl __mingw_longjmp(jmp_buf _Buf, int _Value);
+#endif
+
+#if defined(__TCC_BCHECK__)
+  __declspec(noreturn) __attribute__ ((__nothrow__)) void __cdecl __bound_longjmp(jmp_buf _Buf, int _Value);
+#endif
+
   void * __cdecl __attribute__ ((__nothrow__)) mingw_getsp(void);
-
-#ifdef USE_MINGW_SETJMP_TWO_ARGS
-#ifndef _INC_SETJMPEX
-#define setjmp(BUF) _setjmp((BUF),mingw_getsp())
-  int __cdecl __attribute__ ((__nothrow__)) _setjmp(jmp_buf _Buf,void *_Ctx);
-#else
-#undef setjmp
-#define setjmp(BUF) _setjmpex((BUF),mingw_getsp())
-#define setjmpex(BUF) _setjmpex((BUF),mingw_getsp())
-  int __cdecl __attribute__ ((__nothrow__)) _setjmpex(jmp_buf _Buf,void *_Ctx);
-#endif
-#else
-#ifndef _INC_SETJMPEX
-#define setjmp _setjmp
-#endif
-  int __cdecl __attribute__ ((__nothrow__)) setjmp(jmp_buf _Buf);
-#endif
-
-  __declspec(noreturn) __attribute__ ((__nothrow__)) void __cdecl ms_longjmp(jmp_buf _Buf,int _Value)/* throw(...)*/;
-  __declspec(noreturn) __attribute__ ((__nothrow__)) void __cdecl longjmp(jmp_buf _Buf,int _Value);
+  __declspec(noreturn) __attribute__ ((__nothrow__)) void __cdecl ms_longjmp(jmp_buf _Buf, int _Value);
 
 #ifdef __cplusplus
 }
 #endif
 
 #pragma pack(pop)
+
+#ifdef setjmp
+#undef setjmp
+#endif
+#if (defined(_X86_) && !defined(__x86_64))
+#define setjmp(BUF) _setjmp3((BUF), 0)
+#elif defined(__arm__) || defined(__aarch64__)
+#define setjmp(BUF) __mingw_setjmp((BUF))
+#elif defined(USE_MINGW_SETJMP_TWO_ARGS)
+  #ifndef _INC_SETJMPEX
+    #define setjmp(BUF) _setjmp((BUF), mingw_getsp())
+  #else
+    #define setjmp(BUF) _setjmpex((BUF), mingw_getsp())
+    #define setjmpex(BUF) _setjmpex((BUF), mingw_getsp())
+  #endif
+#else
+  #ifndef _INC_SETJMPEX
+    #define setjmp _setjmp
+  #endif
+#endif
+
+#ifdef longjmp
+#undef longjmp
+#endif
+#if defined(__TCC_BCHECK__) && defined(__aarch64__)
+#define longjmp __bound_longjmp
+#elif defined(__arm__) || defined(__aarch64__)
+#define longjmp __mingw_longjmp
+#else
+#define longjmp longjmp
+#endif
 #endif

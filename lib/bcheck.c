@@ -351,6 +351,7 @@ static unsigned char print_heap;
 static unsigned char print_statistic;
 static unsigned char no_strdup;
 static unsigned char use_sem;
+/* This counter is toggled from runtime/error paths and must remain atomic. */
 static _Atomic int never_fatal;
 #if HAVE_TLS_FUNC
 #if defined(_WIN32)
@@ -906,7 +907,11 @@ static void __bound_long_jump(jmp_buf env, int val, int sig, const char *func)
 #if !defined(_WIN32)
     sig ? siglongjmp(env, val) :
 #endif
+#if defined(_WIN32) && defined(__aarch64__)
+    __mingw_longjmp(env, val);
+#else
     longjmp (env, val);
+#endif
 }
 
 void __bound_longjmp(jmp_buf env, int val)

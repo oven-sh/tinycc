@@ -57,6 +57,7 @@ build_cross=
 # use CC/AR from environment when set
 test -n "$CC" && cc="$CC"
 test -n "$AR" && ar="$AR"
+host_cc="${CC:-$cc}"
 
 # host_cc defaults to cc (which may have been overridden by $CC above)
 host_cc="${CC:-$cc}"
@@ -269,7 +270,11 @@ default os_release "$(uname -r)"
 case $buildos in
   Windows_NT|MINGW*|MSYS*|CYGWIN*)
     buildos="WIN32"
-    test "$MSYSTEM" = "MINGW32" && cpu_sys=i386
+    case "$MSYSTEM" in
+      MINGW32) cpu_sys=i386 ;;
+      MINGW64) cpu_sys=x86_64 ;;
+      CLANGARM64|MINGW_ARM64) cpu_sys=arm64 ;;
+    esac
   ;;
   Linux)
     if test "$(uname -o)" = "Android"; then

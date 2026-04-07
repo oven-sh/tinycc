@@ -41,7 +41,7 @@ ARM_O = libtcc1.o armeabi.o armflush.o $(COMMON_O)
 ARM64_O = lib-arm64.o $(COMMON_O)
 RISCV64_O = lib-arm64.o $(COMMON_O)
 COMMON_O = stdatomic.o atomic.o builtin.o alloca.o alloca-bt.o
-WIN_O = crt1.o crt1w.o wincrt1.o wincrt1w.o dllcrt1.o dllmain.o
+WIN_O = crt1.o crt1w.o wincrt1.o wincrt1w.o dllcrt1.o dllmain.o runrt.o
 LIN_O = dsohandle.o
 OSX_O =
 
@@ -65,6 +65,7 @@ OBJ-i386-win32 = $(I386_O) chkstk.o $(WIN_O)
 OBJ-x86_64-win32 = $(X86_64_O) chkstk.o $(WIN_O)
 OBJ-arm64 = $(ARM64_O) $(LIN_O)
 OBJ-arm64-osx = $(ARM64_O) $(OSX_O)
+OBJ-arm64-win32 = $(ARM64_O) chkstk.o $(WIN_O)
 OBJ-arm = $(ARM_O) $(LIN_O)
 OBJ-arm-fpa = $(OBJ-arm)
 OBJ-arm-fpa-ld = $(OBJ-arm)
@@ -98,6 +99,11 @@ $(TOP)/bcheck.o : XFLAGS += $(BFLAGS)
 
 $(X)crt1w.o : crt1.c
 $(X)wincrt1w.o : wincrt1.c
+
+ifeq ($(T),arm64-win32)
+$(TOP)/runmain.o : runmain-arm64.S $(TCC)
+	$S$(XCC) -c $< -o $@ $(XFLAGS)
+endif
 
 # don't try to make it
 $(TCC) : ;

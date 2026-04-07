@@ -55,7 +55,10 @@ ifneq (,$(filter arm% riscv%,$(ARCH)))
  SKIP += 99_fastcall.test
  SKIP += 127_asm_goto.test
 endif
-# Skip pthread tests for Windows cross-compilation targets
+ifeq (,$(filter arm64 aarch64,$(ARCH)))
+ SKIP += 138_arm64_encoding.test
+ SKIP += 139_arm64_errors.test
+endif
 ifneq (,$(findstring win32,$(CROSS_TARGET)))
  SKIP += 106_versym.test
  SKIP += 114_bound_signal.test
@@ -86,6 +89,7 @@ endif
 
 # These tests run several snippets from the same file one by one
 60_errors_and_warnings.test : FLAGS += -dt
+139_arm64_errors.test : FLAGS += -dt
 96_nodata_wanted.test : FLAGS += -dt
 
 # Always generate certain .expects (don't put these in the GIT),

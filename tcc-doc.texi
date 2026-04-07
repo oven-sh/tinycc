@@ -175,7 +175,6 @@ In a script, it gives the following header:
 @example
 #!/usr/local/bin/tcc -run -L/usr/X11R6/lib -lX11
 @end example
-
 @item -v
 Display TCC version.
 

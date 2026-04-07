@@ -1662,7 +1662,7 @@ void cast_test()
     printf("sizeof(-(char)'a') = %d\n", sizeof(-(char)'a'));
     printf("sizeof(~(char)'a') = %d\n", sizeof(-(char)'a'));
 
-#if CC_NAME != CC_clang /* clang doesn't support non-portable conversions */
+#if __SIZEOF_LONG__ == __SIZEOF_POINTER__ /* avoid LLP64 lossy pointer casts */
     /* from pointer to integer types */
     printf("%d %d %ld %ld %lld %lld\n",
            (int)p, (unsigned int)p,
@@ -2176,10 +2176,9 @@ float strtof(const char *nptr, char **endptr);
 LONG_DOUBLE strtold(const char *nptr, char **endptr);
 #endif
 
-#if CC_NAME == CC_clang
-/* In clang 0.0/0.0 is nan and not -nan.
-   Also some older clang version do v=-v
-   as v = -0 - v */
+#if defined(_WIN32) || CC_NAME == CC_clang
+/* Windows CRT NaN rendering is not stable across toolchains.
+   Also some older clang versions do v=-v as v = -0 - v. */
 static char enable_nan_test = 0;
 #else
 static char enable_nan_test = 1;
@@ -2556,11 +2555,11 @@ void longlong_test(void)
     a = ia;
     b = ua;
     printf(LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n", a, b);
-    printf(LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " %Lx\n", 
+    printf(LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " XLONG_LONG_FORMAT "\n",
            (long long)1, 
            (long long)-2,
            1LL,
-           0x1234567812345679);
+           0x1234567812345679ULL);
     a = llfunc1(-3);
     printf(LONG_LONG_FORMAT "\n", a);
 
@@ -3466,7 +3465,7 @@ void other_constraints_test(void)
 {
     word ret;
     int var;
-#if CC_NAME != CC_clang
+#if !defined(_WIN32) && CC_NAME != CC_clang
     __asm__ volatile ("mov %P1,%0" : "=r" (ret) : "p" (&var));
     printf ("oc1: %d\n", ret == (word)&var);
 #endif
@@ -3888,11 +3887,28 @@ int constant_p_var;
 
 int func(void);
 
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
+#if defined(__TINYC__) || defined(__GNUC__) || defined(__clang__)
+#define HAVE_GNU_BUILTIN_TESTS 1
+#endif
+
+#if defined(__TINYC__)
+#define HAVE_GNU_CLRSB_BUILTINS 1
+#elif defined(__clang__)
+#if __has_builtin(__builtin_clrsb) && __has_builtin(__builtin_clrsbl) && __has_builtin(__builtin_clrsbll)
+#define HAVE_GNU_CLRSB_BUILTINS 1
+#endif
+#elif defined(__GNUC__) && __GNUC__ >= 6
+#define HAVE_GNU_CLRSB_BUILTINS 1
+#endif
 
 /* __builtin_clz and __builtin_ctz return random values for 0 */
 static void builtin_test_bits(unsigned long long x, int cnt[])
 {
-#if GCC_MAJOR >= 4
+#ifdef HAVE_GNU_BUILTIN_TESTS
     cnt[0] += __builtin_ffs(x);
     cnt[1] += __builtin_ffsl(x);
     cnt[2] += __builtin_ffsll(x);
@@ -3905,8 +3921,7 @@ static void builtin_test_bits(unsigned long long x, int cnt[])
     if ((unsigned long) x) cnt[7] += __builtin_ctzl(x);
     if ((unsigned long long) x) cnt[8] += __builtin_ctzll(x);
 
-#if GCC_MAJOR >= 6 && (CC_NAME != CC_clang || GCC_MAJOR >= 11)
-/* Apple clang 10 does not have __builtin_clrsb[l[l]] */
+#ifdef HAVE_GNU_CLRSB_BUILTINS
     cnt[9] += __builtin_clrsb(x);
     cnt[10] += __builtin_clrsbl(x);
     cnt[11] += __builtin_clrsbll(x);
@@ -3927,7 +3942,7 @@ void builtin_test(void)
     short s;
     int i;
     long long ll;
-#if GCC_MAJOR >= 3
+#ifdef HAVE_GNU_BUILTIN_TESTS
     COMPAT_TYPE(int, int);
     COMPAT_TYPE(int, unsigned int);
     COMPAT_TYPE(int, char);

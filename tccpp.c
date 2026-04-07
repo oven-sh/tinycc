@@ -942,11 +942,11 @@ redo_start:
                 else if (parse_flags & PARSE_FLAG_ASM_FILE)
                     p = parse_line_comment(p - 1);
             }
-#if !defined(TCC_TARGET_ARM)
+#if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_ARM64)
             else if (parse_flags & PARSE_FLAG_ASM_FILE)
                 p = parse_line_comment(p - 1);
 #else
-            /* ARM assembly uses '#' for constants */
+            /* ARM/ARM64 assembly uses '#' for constants */
 #endif
             break;
 _default:
@@ -2522,9 +2522,13 @@ static void parse_number(const char *p)
                 tcc_error("invalid digit");
             n1 = n;
             n = n * b + t;
-            /* detect overflow */
-            if (n1 >= 0x1000000000000000ULL && n / b != n1)
-                ov = 1;
+            if (!ov) {
+                /* detect overflow */
+                if (n1 >= 0x1000000000000000ULL && n / b != n1)
+                    ov = 1;
+                else
+                    n1 = n;
+            }
         }
 
         /* Determine the characteristics (unsigned and/or 64bit) the type of
@@ -2698,7 +2702,7 @@ maybe_newline:
                 p++;
                 tok = TOK_TWOSHARPS;
             } else {
-#if !defined(TCC_TARGET_ARM)
+#if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_ARM64)
                 if (parse_flags & PARSE_FLAG_ASM_FILE) {
                     p = parse_line_comment(p - 1);
                     goto redo_no_start;

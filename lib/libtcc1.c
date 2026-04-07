@@ -630,6 +630,12 @@ long long __fixxfdi (long double a1)
 /* MSVC x64 intrinsic */
 void __faststorefence(void)
 {
-    __asm__("lock; orl $0,(%rsp)");
+#if defined(__aarch64__)
+    /* ARM64: Data Memory Barrier (Inner Shareable) */
+    __asm__("dmb ish");
+#else
+    /* x86-64: lock prefix to flush store buffer */
+    __asm__("lock; orl $0,(%%rsp)" ::: "memory");
+#endif
 }
 #endif

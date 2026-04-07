@@ -70,12 +70,21 @@
 
 #ifdef _WIN64
 #define __stdcall
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(_ARM64_)
+#ifndef _M_ARM64
+#define _M_ARM64 1
+#endif
+#ifndef _ARM64_
+#define _ARM64_ 1
+#endif
+#else
 #define _AMD64_ 1
 #define __x86_64 1
 #define _M_X64 100 /* Visual Studio */
 #define _M_AMD64 100 /* Visual Studio */
 #define USE_MINGW_SETJMP_TWO_ARGS
 #define mingw_getsp tinyc_getbp
+#endif
 #else
 #define __stdcall __attribute__((__stdcall__))
 #define _X86_ 1

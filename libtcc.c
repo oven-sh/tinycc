@@ -905,6 +905,9 @@ LIBTCCAPI TCCState *tcc_new(void)
 #ifdef TCC_TARGET_ARM
     s->float_abi = ARM_FLOAT_ABI;
 #endif
+#ifdef TCC_IS_NATIVE
+    s->run_arg_start = -1;
+#endif
 #ifdef CONFIG_NEW_DTAGS
     s->enable_new_dtags = 1;
 #endif

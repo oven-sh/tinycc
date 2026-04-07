@@ -356,10 +356,12 @@
      DEF(TOK_sigsetjmp, "sigsetjmp")
      DEF(TOK___sigsetjmp, "__sigsetjmp")
      DEF(TOK_siglongjmp, "siglongjmp")
-# endif
+  # endif
      DEF(TOK_setjmp, "setjmp")
      DEF(TOK__setjmp, "_setjmp")
+     DEF(TOK___mingw_setjmp, "__mingw_setjmp")
      DEF(TOK_longjmp, "longjmp")
+     DEF(TOK___mingw_longjmp, "__mingw_longjmp")
 #endif
 
 
@@ -421,8 +423,12 @@
 #include "i386-tok.h"
 #endif
 
-#if defined TCC_TARGET_ARM || defined TCC_TARGET_ARM64
+#if defined TCC_TARGET_ARM
 #include "arm-tok.h"
+#endif
+
+#if defined TCC_TARGET_ARM64
+#include "arm64-tok.h"
 #endif
 
 #if defined TCC_TARGET_RISCV64

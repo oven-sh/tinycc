@@ -338,7 +338,16 @@ int main(int argc, char **argv)
 #else
 #include <tcclib.h>
 
+#ifdef _WIN32
+# ifdef __i386__
+#  define LIBTCC_TEST_WINAPI __attribute__((__stdcall__))
+# else
+#  define LIBTCC_TEST_WINAPI
+# endif
+void LIBTCC_TEST_WINAPI Sleep(unsigned int milliseconds);
+#else
 unsigned int sleep(unsigned int seconds);
+#endif
 
 int fib(n)
 {
@@ -347,7 +356,11 @@ int fib(n)
 
 int main(int argc, char **argv)
 {
+#ifdef _WIN32
+    Sleep(1000);
+#else
     sleep(1);
+#endif
     printf(" %d", fib(atoi(argv[1])));
     return 0;
 }

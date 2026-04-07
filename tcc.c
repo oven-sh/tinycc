@@ -231,6 +231,36 @@ static void print_search_dirs(TCCState *s)
 
 static void set_environment(TCCState *s)
 {
+#ifdef _WIN32
+    static const char * const names[] = {
+        "C_INCLUDE_PATH",
+        "CPATH",
+        "LIBRARY_PATH",
+    };
+    int i;
+
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+        DWORD len = GetEnvironmentVariableA(names[i], NULL, 0);
+        char *path;
+
+        if (!len)
+            continue;
+        path = tcc_malloc(len);
+        if (!path)
+            continue;
+        if (!GetEnvironmentVariableA(names[i], path, len)) {
+            tcc_free(path);
+            continue;
+        }
+        if (i == 0)
+            tcc_add_sysinclude_path(s, path);
+        else if (i == 1)
+            tcc_add_include_path(s, path);
+        else
+            tcc_add_library_path(s, path);
+        tcc_free(path);
+    }
+#else
     char * path;
 
     path = getenv("C_INCLUDE_PATH");
@@ -245,6 +275,7 @@ static void set_environment(TCCState *s)
     if(path != NULL) {
         tcc_add_library_path(s, path);
     }
+#endif
 }
 
 static char *default_outputfile(TCCState *s, const char *first_file)
@@ -299,6 +330,9 @@ redo:
     argc = argc0, argv = argv0;
     s = s1 = tcc_new();
     opt = tcc_parse_args(s, &argc, &argv);
+#ifdef TCC_IS_NATIVE
+    s->run_arg_start = (int)(argv - argv0);
+#endif
 
     if (n == 0) {
         ret = 0;

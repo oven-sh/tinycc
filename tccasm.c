@@ -1032,11 +1032,14 @@ static int tcc_assemble_internal(TCCState *s1, int do_preprocess, int global)
         tcc_debug_line(s1);
         parse_flags |= PARSE_FLAG_LINEFEED; /* XXX: suppress that hack */
     redo:
+#if !defined(TCC_TARGET_ARM64)
         if (tok == '#') {
             /* horrible gas comment */
             while (tok != TOK_LINEFEED)
                 next();
-        } else if (tok >= TOK_ASMDIR_FIRST && tok <= TOK_ASMDIR_LAST) {
+        } else
+#endif
+        if (tok >= TOK_ASMDIR_FIRST && tok <= TOK_ASMDIR_LAST) {
             asm_parse_directive(s1, global);
         } else if (tok == TOK_PPNUM) {
             const char *p;
@@ -1175,7 +1178,10 @@ static void subst_asm_operands(ASMOperand *operands, int nb_operands,
             modifier = 0;
             if (*str == 'c' || *str == 'n' ||
                 *str == 'b' || *str == 'w' || *str == 'h' || *str == 'k' ||
-		*str == 'q' || *str == 'l' ||
+                *str == 'q' || *str == 'l' ||
+#ifdef TCC_TARGET_ARM64
+                *str == 'x' || *str == 's' || *str == 'd' || *str == 'Z' ||
+#endif
 #ifdef TCC_TARGET_RISCV64
 		*str == 'z' ||
 #endif
@@ -1196,7 +1202,7 @@ static void subst_asm_operands(ASMOperand *operands, int nb_operands,
                 sv = *op->vt;
                 if (op->reg >= 0) {
                     sv.r = op->reg;
-                    if ((op->vt->r & VT_VALMASK) == VT_LLOCAL && op->is_memory)
+                    if (op->is_memory)
                       sv.r |= VT_LVAL;
                 }
                 subst_asm_operand(out_str, &sv, modifier);
@@ -1248,7 +1254,12 @@ static void parse_asm_operands(ASMOperand *operands, int *nb_operands_ptr,
                 if ((vtop->r & VT_LVAL) &&
                     ((vtop->r & VT_VALMASK) == VT_LLOCAL ||
                      (vtop->r & VT_VALMASK) < VT_CONST) &&
-                    !strchr(op->constraint, 'm')) {
+                    !strchr(op->constraint, 'm')
+#ifdef TCC_TARGET_ARM64
+                    && !strchr(op->constraint, 'Q')
+                    && !strstr(op->constraint, "Ump")
+#endif
+                    ) {
                     gv(RC_INT);
                 }
             }

@@ -224,6 +224,8 @@ extern "C" {
   extern wchar_t **_imp___wpgmptr;
 #endif
 #endif
+  _CRTIMP errno_t __cdecl _get_environ(char ***_Value);
+  _CRTIMP errno_t __cdecl _get_wenviron(wchar_t ***_Value);
   errno_t __cdecl _get_pgmptr(char **_Value);
   errno_t __cdecl _get_wpgmptr(wchar_t **_Value);
 #ifndef _fmode

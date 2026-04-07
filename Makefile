@@ -33,8 +33,9 @@ ifdef CONFIG_WIN32
  ifneq ($(CONFIG_debug),yes)
   LDFLAGS += -s
  endif
- NATIVE_TARGET = $(ARCH)-win$(if $(findstring arm,$(ARCH)),ce,32)
+ NATIVE_TARGET = $(if $(findstring arm64,$(ARCH)),arm64-win32,$(ARCH)-win$(if $(findstring arm,$(ARCH)),ce,32))
 else
+
  CFG = -unx
  LIBS+=-lm
  ifneq ($(CONFIG_ldl),no)
@@ -213,7 +214,7 @@ arm-fpa-ld_FILES  = $(arm_FILES)
 arm-vfp_FILES     = $(arm_FILES)
 arm-eabi_FILES    = $(arm_FILES)
 arm-eabihf_FILES  = $(arm_FILES)
-arm64_FILES = $(CORE_FILES) arm64-gen.c arm64-link.c arm64-asm.c
+arm64_FILES = $(CORE_FILES) arm64-gen.c arm64-link.c arm64-asm.c arm64-tok.h
 arm64-osx_FILES = $(arm64_FILES) tccmacho.c
 arm64-win32_FILES = $(arm64_FILES) tccpe.c
 c67_FILES = $(CORE_FILES) c67-gen.c c67-link.c tcccoff.c

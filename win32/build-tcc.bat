@@ -32,7 +32,7 @@ if (%1)==() goto :p1
 :usage
 echo usage: build-tcc.bat [ options ... ]
 echo options:
-echo   -c prog              use prog (gcc/tcc/cl) to compile tcc
+echo   -c prog              use prog (gcc/clang/tcc/cl) to compile tcc
 echo   -c "prog options"    use prog with options to compile tcc
 echo   -t 32/64             force 32/64 bit default target
 echo   -v "version"         set tcc version
@@ -63,6 +63,12 @@ if exist %1 del %1 && %LOG%   %1
 exit /B 0
 :del_dir
 if exist %1 rmdir /Q/S %1 && %LOG%   %1
+exit /B 0
+
+:select_clang
+if /I not "%CC%"=="clang" exit /B 0
+if "%~1"=="64" if exist C:\msys64\clang64\bin\x86_64-w64-mingw32-clang.exe set CC=C:\msys64\clang64\bin\x86_64-w64-mingw32-clang.exe
+if "%~1"=="arm64" if exist C:\msys64\clangarm64\bin\aarch64-w64-mingw32-clang.exe set CC=C:\msys64\clangarm64\bin\aarch64-w64-mingw32-clang.exe
 exit /B 0
 
 :cl
@@ -119,11 +125,10 @@ goto :p3
 :tarm64
 set D=%DARM64%
 set P=%PARM64%
-@rem ARM64 with clang: use single-source build (lld-link can't link DLL directly)
-set TCC_C=..\tcc.c
 goto :p3
 
 :p3
+call :select_clang %T%
 git.exe --version 2>nul
 if not %ERRORLEVEL%==0 goto :git_done
 for /f %%b in ('git.exe rev-parse --abbrev-ref HEAD') do set GITHASH=%%b
@@ -180,8 +185,7 @@ if exist libtcc.dll .\tcc -impdef libtcc.dll -o libtcc\libtcc.def
 @if errorlevel 1 goto :the_end
 
 :lib
-@rem Skip lib building for ARM64 - tcc's ARM64 assembler is not implemented
-if %T%==arm64 goto :files_done
+@rem ARM64 assembler files and basic inline asm strings are supported here.
 call :make_lib %T% || goto :the_end
 @if exist %PX%-tcc.exe call :make_lib %TX% %PX%- || goto :the_end
 
@@ -214,16 +218,28 @@ exit /B %ERRORLEVEL%
 .\tcc -B. -m%1 -c lib/wincrt1w.c
 .\tcc -B. -m%1 -c lib/dllcrt1.c
 .\tcc -B. -m%1 -c lib/dllmain.c
+.\tcc -B. -m%1 -c lib/runrt.c
 .\tcc -B. -m%1 -c lib/chkstk.S
 .\tcc -B. -m%1 -c ../lib/alloca.S
 .\tcc -B. -m%1 -c ../lib/alloca-bt.S
 .\tcc -B. -m%1 -c ../lib/stdatomic.c
 .\tcc -B. -m%1 -c ../lib/atomic.S
 .\tcc -B. -m%1 -c ../lib/builtin.c
-.\tcc -B. -m%1 -ar lib/%2libtcc1.a libtcc1.o crt1.o crt1w.o wincrt1.o wincrt1w.o dllcrt1.o dllmain.o chkstk.o alloca.o alloca-bt.o stdatomic.o atomic.o builtin.o
+.\tcc -ar lib/%2libtcc1.a libtcc1.o crt1.o crt1w.o wincrt1.o wincrt1w.o dllcrt1.o dllmain.o runrt.o chkstk.o alloca.o alloca-bt.o stdatomic.o atomic.o builtin.o
 .\tcc -B. -m%1 -c ../lib/bcheck.c -o lib/%2bcheck.o -bt -I..
 .\tcc -B. -m%1 -c ../lib/bt-exe.c -o lib/%2bt-exe.o
 .\tcc -B. -m%1 -c ../lib/bt-log.c -o lib/%2bt-log.o
 .\tcc -B. -m%1 -c ../lib/bt-dll.c -o lib/%2bt-dll.o
-.\tcc -B. -m%1 -c ../lib/runmain.c -o lib/%2runmain.o
+@if "%1"=="arm64" (
+  .\tcc -B. -m%1 -c lib/runmain-arm64.S -o lib/%2runmain.o
+) else (
+  .\tcc -B. -m%1 -c ../lib/runmain.c -o lib/%2runmain.o
+)
+@if "%~2"=="" (
+  @rem Keep the repo-root runtime helpers in sync for native -run and tests.
+  if exist tcc.exe copy>nul /y tcc.exe ..\tcc.exe
+  if exist libtcc.dll copy>nul /y libtcc.dll ..\libtcc.dll
+  copy>nul /y lib\libtcc1.a ..\libtcc1.a
+  for %%f in (bcheck bt-dll bt-exe bt-log runmain) do @copy>nul /y lib\%%f.o ..\%%f.o
+)
 exit /B %ERRORLEVEL%

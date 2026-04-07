@@ -263,7 +263,9 @@
                            &~3), *(type *)(ap - ((sizeof(type)+3)&~3)))
 
 #elif defined __aarch64__
-#if defined __APPLE__
+#if defined _WIN32
+    typedef char *__builtin_va_list;
+#elif defined __APPLE__
     typedef struct {
         void *__stack;
     } __builtin_va_list;

@@ -23,6 +23,9 @@
 
 #define _GNU_SOURCE
 #define _DARWIN_C_SOURCE
+#if defined(_M_ARM64) && !defined(__aarch64__)
+# define __aarch64__ 1
+#endif
 #include "config.h"
 
 #include <stdarg.h>
@@ -505,6 +508,7 @@ struct SymAttr {
     unsigned short
     aligned     : 5, /* alignment as log2+1 (0 == unspecified) */
     packed      : 1,
+    typedef_align : 1, /* alignment came from a typedef'ed type */
     weak        : 1,
     visibility  : 2,
     dllexport   : 1,
@@ -512,7 +516,7 @@ struct SymAttr {
     dllimport   : 1,
     addrtaken   : 1,
     nodebug     : 1,
-    xxxx        : 2; /* not used */
+    xxxx        : 1; /* not used */
 };
 
 /* function attributes or temporary attributes for parsing */
@@ -592,7 +596,7 @@ typedef struct Section {
 typedef struct DLLReference {
     int level;
     void *handle;
-    unsigned char found, index;
+    unsigned char found, index, process_scoped;
     char name[1];
 } DLLReference;
 
@@ -952,6 +956,7 @@ struct TCCState {
 # if defined(TCC_TARGET_X86_64) || defined(TCC_TARGET_ARM64)
     Section *uw_pdata;
     int uw_sym;
+    int uw_xsym;
     unsigned uw_offs;
 # endif
 #endif
@@ -974,6 +979,7 @@ struct TCCState {
 
 #ifdef TCC_IS_NATIVE
     const char *run_main; /* entry for tcc_run() */
+    int run_arg_start; /* argv index for tcc -run relative to the host command line */
     void *run_ptr; /* runtime_memory */
     unsigned run_size; /* size of runtime_memory  */
     const char *run_stdin; /* custom stdin file for run_main */

@@ -61,7 +61,7 @@ void f2()
 void f1()
 {
     printf("* f1()\n"), fflush(stdout);
-    tcc_backtrace("Hello from %s!", "f1");
+    tcc_backtrace("^12345678901234567890123456789012345678901234567890^Hello from %s!", "f1");
     f2();
 }
 int main(int argc, char **argv)

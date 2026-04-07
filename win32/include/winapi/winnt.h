@@ -21,7 +21,7 @@ extern "C" {
 #define __CRT_UNALIGNED
 #endif
 
-#if defined(__ia64__) || defined(__x86_64)
+#if defined(__ia64__) || defined(__x86_64) || defined(__aarch64__)
 #define UNALIGNED __CRT_UNALIGNED
 #ifdef _WIN64
 #define UNALIGNED64 __CRT_UNALIGNED
@@ -47,6 +47,9 @@ extern "C" {
 #endif
 #endif
 
+#if !defined(I_X86_) && !defined(_IA64_) && !defined(_AMD64_) && defined(__aarch64__) && !defined(_ARM64_)
+#define _ARM64_
+#endif
 
 #ifdef _WIN64
 #define MAX_NATURAL_ALIGNMENT sizeof(ULONGLONG)
@@ -65,7 +68,7 @@ extern "C" {
 #ifdef _WIN64
 #ifdef _AMD64_
 #define PROBE_ALIGNMENT(_s) TYPE_ALIGNMENT(DWORD)
-#elif defined(_IA64_)
+#elif defined(_IA64_) || defined(_ARM64_)
 #define PROBE_ALIGNMENT(_s) (TYPE_ALIGNMENT(_s) > TYPE_ALIGNMENT(DWORD) ? TYPE_ALIGNMENT(_s) : TYPE_ALIGNMENT(DWORD))
 #else
 #error No Target Architecture
@@ -79,7 +82,7 @@ extern "C" {
 
 #include <basetsd.h>
 
-#if defined(_X86_) || defined(__ia64__) || defined(__x86_64)
+#if defined(_X86_) || defined(__ia64__) || defined(__x86_64) || defined(__aarch64__)
 #define DECLSPEC_IMPORT __declspec(dllimport)
 #else
 #define DECLSPEC_IMPORT
@@ -321,7 +324,7 @@ typedef DWORD LCID;
 #define Int32x32To64(a,b) (LONGLONG)((LONGLONG)(LONG)(a) *(LONG)(b))
 #define UInt32x32To64(a,b) (ULONGLONG)((ULONGLONG)(DWORD)(a) *(DWORD)(b))
 #define Int64ShrlMod32(a,b) ((DWORDLONG)(a)>>(b))
-#elif defined(__ia64__) || defined(__x86_64)
+#elif defined(__ia64__) || defined(__x86_64) || defined(__aarch64__)
 #define Int32x32To64(a,b) ((LONGLONG)((LONG)(a)) *(LONGLONG)((LONG)(b)))
 #define UInt32x32To64(a,b) ((ULONGLONG)((DWORD)(a)) *(ULONGLONG)((DWORD)(b)))
 #define Int64ShrlMod32(a,b) ((ULONGLONG)(a) >> (b))
@@ -829,7 +832,7 @@ typedef DWORD LCID;
   typedef ULONG_PTR KSPIN_LOCK;
   typedef KSPIN_LOCK *PKSPIN_LOCK;
 
-#ifdef _AMD64_
+#if defined(_AMD64_) || defined(_ARM64_)
 
 #if defined(__x86_64) && !defined(RC_INVOKED)
 
@@ -1336,6 +1339,7 @@ typedef DWORD LCID;
 
 #define LEGACY_SAVE_AREA_LENGTH sizeof(XMM_SAVE_AREA32)
 
+#if defined(__x86_64) || defined(_AMD64_)
   typedef struct DECLSPEC_ALIGN(16) _CONTEXT {
     DWORD64 P1Home;
     DWORD64 P2Home;
@@ -1407,6 +1411,7 @@ typedef DWORD LCID;
     DWORD64 LastExceptionToRip;
     DWORD64 LastExceptionFromRip;
   } CONTEXT,*PCONTEXT;
+#endif /* defined(__x86_64) || defined(_AMD64_) */
 
 #define RUNTIME_FUNCTION_INDIRECT 0x1
 
@@ -1417,6 +1422,123 @@ typedef DWORD LCID;
   } RUNTIME_FUNCTION,*PRUNTIME_FUNCTION;
 
   typedef PRUNTIME_FUNCTION (*PGET_RUNTIME_FUNCTION_CALLBACK)(DWORD64 ControlPc,PVOID Context);
+
+#if defined(_ARM64_) || defined(__aarch64__)
+
+/* ARM64 Context Definition */
+#define CONTEXT_ARM64 0x00400000
+
+#ifndef CONTEXT_CONTROL
+#define CONTEXT_CONTROL (CONTEXT_ARM64 | 0x00000001L)
+#endif
+#ifndef CONTEXT_INTEGER
+#define CONTEXT_INTEGER (CONTEXT_ARM64 | 0x00000002L)
+#endif
+#ifndef CONTEXT_FLOATING_POINT
+#define CONTEXT_FLOATING_POINT (CONTEXT_ARM64 | 0x00000004L)
+#endif
+#ifndef CONTEXT_DEBUG
+#define CONTEXT_DEBUG (CONTEXT_ARM64 | 0x00000008L)
+#endif
+
+#ifndef CONTEXT_FULL
+#define CONTEXT_FULL (CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_FLOATING_POINT)
+#endif
+#ifndef CONTEXT_ALL
+#define CONTEXT_ALL (CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_FLOATING_POINT | CONTEXT_DEBUG)
+#endif
+
+#ifndef ARM64_MAX_BREAKPOINTS
+#define ARM64_MAX_BREAKPOINTS 8
+#endif
+#ifndef ARM64_MAX_WATCHPOINTS
+#define ARM64_MAX_WATCHPOINTS 2
+#endif
+
+#ifndef _ARM64_NT_NEON128_DECLARED
+#define _ARM64_NT_NEON128_DECLARED
+  typedef union _ARM64_NT_NEON128 {
+    struct {
+      ULONGLONG Low;
+      LONGLONG High;
+    } DUMMYSTRUCTNAME;
+    double D[2];
+    float S[4];
+    WORD H[8];
+    BYTE B[16];
+  } ARM64_NT_NEON128,*PARM64_NT_NEON128;
+#endif
+
+#ifndef _ARM64_CONTEXT_DECLARED
+#define _ARM64_CONTEXT_DECLARED
+  typedef struct DECLSPEC_ALIGN(16) _ARM64_NT_CONTEXT {
+    ULONG ContextFlags;
+    ULONG Cpsr;
+    union {
+      struct {
+        DWORD64 X0;
+        DWORD64 X1;
+        DWORD64 X2;
+        DWORD64 X3;
+        DWORD64 X4;
+        DWORD64 X5;
+        DWORD64 X6;
+        DWORD64 X7;
+        DWORD64 X8;
+        DWORD64 X9;
+        DWORD64 X10;
+        DWORD64 X11;
+        DWORD64 X12;
+        DWORD64 X13;
+        DWORD64 X14;
+        DWORD64 X15;
+        DWORD64 X16;
+        DWORD64 X17;
+        DWORD64 X18;
+        DWORD64 X19;
+        DWORD64 X20;
+        DWORD64 X21;
+        DWORD64 X22;
+        DWORD64 X23;
+        DWORD64 X24;
+        DWORD64 X25;
+        DWORD64 X26;
+        DWORD64 X27;
+        DWORD64 X28;
+        DWORD64 Fp;
+        DWORD64 Lr;
+      } DUMMYSTRUCTNAME;
+      DWORD64 X[31];
+    } DUMMYUNIONNAME;
+    DWORD64 Sp;
+    DWORD64 Pc;
+    ARM64_NT_NEON128 V[32];
+    DWORD Fpcr;
+    DWORD Fpsr;
+    DWORD Bcr[ARM64_MAX_BREAKPOINTS];
+    DWORD64 Bvr[ARM64_MAX_BREAKPOINTS];
+    DWORD Wcr[ARM64_MAX_WATCHPOINTS];
+    DWORD64 Wvr[ARM64_MAX_WATCHPOINTS];
+  } ARM64_NT_CONTEXT,*PARM64_NT_CONTEXT;
+
+  C_ASSERT(sizeof(ARM64_NT_CONTEXT) == 0x390);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, ContextFlags) == 0x000);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, X) == 0x008);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Fp) == 0x0f0);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Lr) == 0x0f8);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Sp) == 0x100);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Pc) == 0x108);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, V) == 0x110);
+  C_ASSERT(sizeof(((ARM64_NT_CONTEXT *)0)->V[0]) == 16);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Fpcr) == 0x310);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Fpsr) == 0x314);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Bvr) == 0x338);
+  C_ASSERT(offsetof(ARM64_NT_CONTEXT, Wvr) == 0x380);
+#endif
+
+  typedef ARM64_NT_CONTEXT CONTEXT,*PCONTEXT;
+
+#endif /* _ARM64_ || __aarch64__ */
   typedef DWORD (*POUT_OF_PROCESS_FUNCTION_TABLE_CALLBACK)(HANDLE Process,PVOID TableAddress,PDWORD Entries,PRUNTIME_FUNCTION *Functions);
 
 #define OUT_OF_PROCESS_FUNCTION_TABLE_CALLBACK_EXPORT_NAME "OutOfProcessFunctionTableCallback"
@@ -3701,6 +3823,7 @@ typedef DWORD LCID;
 #define IMAGE_FILE_MACHINE_CEF 0x0CEF
 #define IMAGE_FILE_MACHINE_EBC 0x0EBC
 #define IMAGE_FILE_MACHINE_AMD64 0x8664
+#define IMAGE_FILE_MACHINE_ARM64 0xAA64
 #define IMAGE_FILE_MACHINE_M32R 0x9041
 #define IMAGE_FILE_MACHINE_CEE 0xC0EE
 
@@ -3857,10 +3980,16 @@ typedef DWORD LCID;
 #define IMAGE_SUBSYSTEM_EFI_ROM 13
 #define IMAGE_SUBSYSTEM_XBOX 14
 
+#define IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA 0x0020
+#define IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE 0x0040
+#define IMAGE_DLLCHARACTERISTICS_FORCE_INTEGRITY 0x0080
+#define IMAGE_DLLCHARACTERISTICS_NX_COMPAT 0x0100
 #define IMAGE_DLLCHARACTERISTICS_NO_ISOLATION 0x0200
 #define IMAGE_DLLCHARACTERISTICS_NO_SEH 0x0400
 #define IMAGE_DLLCHARACTERISTICS_NO_BIND 0x0800
+#define IMAGE_DLLCHARACTERISTICS_APPCONTAINER 0x1000
 #define IMAGE_DLLCHARACTERISTICS_WDM_DRIVER 0x2000
+#define IMAGE_DLLCHARACTERISTICS_GUARD_CF 0x4000
 #define IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE 0x8000
 
 #define IMAGE_DIRECTORY_ENTRY_EXPORT 0

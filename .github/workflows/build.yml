@@ -11,7 +11,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: make & test tcc (x86_64-linux)
-      run: ./configure && make && make test -k
+      run: |
+        ./configure
+        make
+        make test -k
+        make -C tests/tests2 tests2.112 tests2.128
 
   test-x86_64-osx:
     runs-on: macos-15-intel
@@ -27,7 +31,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: make & test tcc (aarch64-osx)
-      run: ./configure && make && make test -k
+      run: |
+        ./configure
+        make
+        make test -k
+        make -C tests/tests2 tests2.133
 
   test-x86_64-win32:
     runs-on: windows-2025
@@ -54,8 +62,43 @@ jobs:
         cd win32
         call build-tcc.bat -t 64 -c cl
         echo ::endgroup::
+        set TCC_RUN_ENV=ok
+        .\tcc -B. -run ..\win32\test_run_argv.c alpha "two words" beta > test_run_argv.out
+        fc /n test_run_argv.out ..\win32\test_run_argv.ref
+        .\tcc -B. -run ..\win32\test_run_env.c
+        > test_run_argv_wc_a.tmp echo a
+        > test_run_argv_wc_b.tmp echo b
+        .\tcc -B. -run ..\win32\test_run_argv.c test_run_argv_wc_*.tmp > test_run_argv_wc.out
+        findstr /c:"argc=3" test_run_argv_wc.out
+        findstr /c:"arg1=<test_run_argv_wc_a.tmp>" test_run_argv_wc.out
+        findstr /c:"arg2=<test_run_argv_wc_b.tmp>" test_run_argv_wc.out
+        .\tcc -B. -run ..\win32\test_run_wargv.c alpha "two words" beta > test_run_wargv.out
+        fc /n test_run_wargv.out ..\win32\test_run_wargv.ref
+        .\tcc -B. -run ..\win32\test_run_wenv.c
+        .\tcc -B. -run ..\win32\test_run_wargv.c test_run_wargv_wc_*.tmp > test_run_wargv_wc.out
+        findstr /c:"argc=3" test_run_wargv_wc.out
+        findstr /c:"arg1=<test_run_wargv_wc_a.tmp>" test_run_wargv_wc.out
+        findstr /c:"arg2=<test_run_wargv_wc_b.tmp>" test_run_wargv_wc.out
+        .\tcc -B. ..\win32\test_pe_field_alignment.c -o test_pe_field_alignment.exe && .\test_pe_field_alignment.exe > test_pe_field_alignment.out
+        fc /n test_pe_field_alignment.out ..\win32\test_pe_field_alignment.ref
         .\tcc -I.. libtcc.dll -v ../tests/libtcc_test.c -o libtest.exe && .\libtest.exe
         .\tcc -I.. libtcc.dll -run ../tests/libtcc_test.c
+
+  test-x86_64-win32-clang64:
+    runs-on: windows-2025
+    timeout-minutes: 6
+    steps:
+    - uses: actions/checkout@v4
+    - name: make & test tcc (x86_64-win32-clang64)
+      shell: cmd
+      run: |
+        echo ::group:: setup msys clang64
+        set MSYS2_PATH_TYPE=inherit
+        set MSYSTEM=CLANG64
+        set CHERE_INVOKING=yes
+        C:\msys64\usr\bin\bash -l -c "pacman -S --noconfirm mingw-w64-clang-x86_64-clang"
+        echo ::endgroup::
+        C:\msys64\usr\bin\bash -l -c "./configure --cc=clang && make && make -C tests test3"
 
   test-i386-win32:
     runs-on: windows-2025
@@ -100,7 +143,66 @@ jobs:
         cd win32
         call build-tcc.bat -t arm64 -c clang
         echo ::endgroup::
-        .\tcc -v
+        if not exist libtcc.dll exit /b 1
+        set TCC_RUN_ENV=ok
+        .\tcc -B. -v
+        .\tcc -B. -run ..\win32\test_run_argv.c alpha "two words" beta > test_run_argv.out
+        fc /n test_run_argv.out ..\win32\test_run_argv.ref
+        .\tcc -B. -run ..\win32\test_run_env.c
+        .\tcc -B. -run ..\win32\test_run_wargv.c alpha "two words" beta > test_run_wargv.out
+        fc /n test_run_wargv.out ..\win32\test_run_wargv.ref
+        .\tcc -B. -run ..\win32\test_run_wenv.c
+        > test_run_argv_wc_a.tmp echo a
+        > test_run_argv_wc_b.tmp echo b
+        .\tcc -B. -run ..\win32\test_run_argv.c test_run_argv_wc_*.tmp > test_run_argv_wc.out
+        findstr /c:"argc=3" test_run_argv_wc.out
+        findstr /c:"arg1=<test_run_argv_wc_a.tmp>" test_run_argv_wc.out
+        findstr /c:"arg2=<test_run_argv_wc_b.tmp>" test_run_argv_wc.out
+        > test_run_wargv_wc_a.tmp echo a
+        > test_run_wargv_wc_b.tmp echo b
+        .\tcc -B. -run ..\win32\test_run_wargv.c test_run_wargv_wc_*.tmp > test_run_wargv_wc.out
+        findstr /c:"argc=3" test_run_wargv_wc.out
+        findstr /c:"arg1=<test_run_wargv_wc_a.tmp>" test_run_wargv_wc.out
+        findstr /c:"arg2=<test_run_wargv_wc_b.tmp>" test_run_wargv_wc.out
+        type ..\win32\test_run_stdin.ref | .\tcc -B. -run ..\win32\test_run_stdin.c > test_run_stdin.out
+        fc /n test_run_stdin.out ..\win32\test_run_stdin.ref
+        powershell -NoProfile -Command "$before = @(Get-ChildItem -Path $env:TEMP -Filter 'tcc*.tmp' -Name -ErrorAction SilentlyContinue); & .\tcc -B. -run ..\win32\test_run_exit.c; if ($LASTEXITCODE -ne 27) { exit 1 }; $after = @(Get-ChildItem -Path $env:TEMP -Filter 'tcc*.tmp' -Name -ErrorAction SilentlyContinue); if (Compare-Object $before $after) { Write-Host 'Temporary -run file cleanup mismatch'; Compare-Object $before $after; exit 1 }"
+        .\tcc -B. ..\win32\test_arm64.c -o test_arm64.exe && .\test_arm64.exe
+        .\tcc -B. -run ..\examples\ex1.c
+        .\tcc -B. -run ..\tcc.c -B. -run ..\tcc.c -B. -run ..\examples\ex1.c > test_nested_run.out
+        findstr /x /c:"Hello World" test_nested_run.out
+        clang -O0 -I.. ..\win32\test_arm64_libtcc_context.c ..\win32\test_arm64_libtcc_context.S -o test_libtcc_context.exe
+        .\test_libtcc_context.exe
+        .\tcc -B. ..\win32\test_arm64_inline_asm.c -o test_inline_asm.exe && .\test_inline_asm.exe > test_inline_asm.out
+        > test_inline_asm.expect echo inline asm ok
+        fc /n test_inline_asm.out test_inline_asm.expect
+        .\tcc -B. -DTEST_GOTO ..\win32\test_arm64_inline_asm.c -o test_inline_goto.exe && .\test_inline_goto.exe > test_inline_goto.out
+        > test_inline_goto.expect echo asm goto ok
+        fc /n test_inline_goto.out test_inline_goto.expect
+        .\tcc -B. -DTEST_OPERANDS ..\win32\test_arm64_inline_asm.c -o test_inline_operands.exe && .\test_inline_operands.exe > test_inline_operands.out
+        findstr /x /c:"2" test_inline_operands.out
+        .\tcc -B. -DTEST_CLOBBERS ..\win32\test_arm64_inline_asm.c -o test_inline_clobbers.exe && .\test_inline_clobbers.exe
+        > test_rstdin.txt echo arm64 stdin
+        .\tcc -B. -rstdin test_rstdin.txt -run ..\win32\test_rstdin.c > test_rstdin.out
+        type test_rstdin.out
+        fc /n test_rstdin.out test_rstdin.txt
+        .\tcc -B. ..\tests\tests2\49_bracket_evaluation.c -o test49.exe && .\test49.exe > test49.out
+        fc /n test49.out ..\tests\tests2\49_bracket_evaluation.expect
+        .\tcc -B. ..\tests\tests2\133_old_func.c -o test133.exe && .\test133.exe > test133.out
+        fc /n test133.out ..\tests\tests2\133_old_func.expect
+        .\tcc -B. -b ..\tests\tests2\115_bound_setjmp.c -o test115.exe && .\test115.exe > test115.out
+        for %%I in (test115.out) do if not %%~zI==0 ( type test115.out & exit /b 1 )
+        .\tcc -B. -b ..\tests\tests2\116_bound_setjmp2.c -o test116.exe && .\test116.exe > test116.out
+        for %%I in (test116.out) do if not %%~zI==0 ( type test116.out & exit /b 1 )
+        .\tcc -B. -b ..\win32\test_arm64_backtrace.c -o test_bt.exe
+        .\test_bt.exe > test_bt.out 2>&1
+        if not errorlevel 1 exit /b 1
+        type test_bt.out
+        findstr crash4 test_bt.out
+        findstr crash3 test_bt.out
+        findstr crash2 test_bt.out
+        findstr crash1 test_bt.out
+        findstr main test_bt.out
 
   test-armv7-linux:
     runs-on: ubuntu-22.04
@@ -136,7 +238,10 @@ jobs:
           apt-get install -q -y gcc make
         run: |
             echo "::endgroup::" # flatten 'run container'
-            ./configure && make && make test -k
+            ./configure
+            make
+            make test -k
+            make -C tests/tests2 tests2.73 tests2.109 tests2.121 tests2.133
 
   test-riscv64-linux:
     runs-on: ubuntu-22.04
