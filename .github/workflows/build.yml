@@ -34,73 +34,49 @@ jobs:
     timeout-minutes: 6
     steps:
     - uses: actions/checkout@v4
-    - name: make & test tcc (x86_64-win32)
+    - name: build tcc (x86_64-win32)
       shell: cmd
       run: |
-        echo ::group:: setup msys mingw64-gcc
-        set MSYS2_PATH_TYPE=inherit
-        set MSYSTEM=MINGW64
-        set CHERE_INVOKING=yes
-        C:\msys64\usr\bin\bash -l -c "pacman -S --noconfirm mingw-w64-x86_64-gcc"
-        echo ::endgroup::
-        C:\msys64\usr\bin\bash -l -c "./configure && make && make test -k"
-    - uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: amd64
-    - name: build with MSVC (x86_64-win32)
-      shell: cmd
-      run: |
-        echo ::group:: run build-tcc.bat
         cd win32
-        call build-tcc.bat -t 64 -c cl
-        echo ::endgroup::
-        .\tcc -I.. libtcc.dll -v ../tests/libtcc_test.c -o libtest.exe && .\libtest.exe
-        .\tcc -I.. libtcc.dll -run ../tests/libtcc_test.c
+        for /f "delims=" %%i in ('vswhere.exe -latest -property installationPath') do call "%%i\VC\Auxiliary\Build\vcvarsall.bat" amd64
+        call build-tcc.bat -c cl -t x86_64
+    - name: test (x86_64-win32)
+      shell: cmd
+      run: |
+        cd tests
+        call test-win32.bat all -k
 
   test-i386-win32:
     runs-on: windows-2025
     timeout-minutes: 6
     steps:
     - uses: actions/checkout@v4
-    - name: make & test tcc (i386-win32)
+    - name: build tcc (i386-win32)
       shell: cmd
       run: |
-        echo ::group:: setup msys mingw32-gcc
-        set MSYS2_PATH_TYPE=inherit
-        set MSYSTEM=MINGW32
-        set CHERE_INVOKING=yes
-        C:\msys64\usr\bin\bash -l -c "pacman -S --noconfirm mingw-w64-i686-gcc"
-        echo ::endgroup::
-        C:\msys64\usr\bin\bash -l -c "./configure && make && make test -k"
-    - uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x86
-    - name: build with MSVC (i386-win32)
-      shell: cmd
-      run: |
-        echo ::group:: run build-tcc.bat
         cd win32
-        call build-tcc.bat -t 32 -c cl
-        echo ::endgroup::
-        .\tcc -I.. libtcc.dll -v ../tests/libtcc_test.c -o libtest.exe && .\libtest.exe
-        .\tcc -I.. libtcc.dll -run ../tests/libtcc_test.c
+        for /f "delims=" %%i in ('vswhere.exe -latest -property installationPath') do call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x86
+        call build-tcc.bat -c cl -t i386
+    - name: test (i386-win32)
+      shell: cmd
+      run: |
+        cd tests
+        call test-win32.bat -p c:\mingw32\bin all -k
 
-  test-aarch64-win32:
+  test-arm64-win32:
     runs-on: windows-11-arm
     timeout-minutes: 6
     steps:
     - uses: actions/checkout@v4
-    - uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: arm64
-    - name: build & test tcc (aarch64-win32)
+    - name: build and test (arm64-win32)
       shell: cmd
       run: |
-        echo ::group:: build with clang
         cd win32
-        call build-tcc.bat -t arm64 -c clang
-        echo ::endgroup::
-        .\tcc -v
+        for /f "delims=" %%i in ('vswhere.exe -latest -property installationPath') do call "%%i\VC\Auxiliary\Build\vcvarsall.bat" amd64_arm64
+        call build-tcc.bat -c cl -t arm64
+        set "PATH=C:\Program Files\LLVM\bin;%CD%;%PATH%"
+        cd ..\tests
+        call test-win32.bat -c clang all -k
 
   test-armv7-linux:
     runs-on: ubuntu-22.04
@@ -155,3 +131,13 @@ jobs:
         run: |
             echo "::endgroup::" # flatten 'run container'
             ./configure && make && make test -k
+
+  test-riscv64-linux-native:
+    runs-on: ubuntu-24.04-riscv
+    timeout-minutes: 8
+    steps:
+    - uses: actions/checkout@v4
+    - name: make & test tcc (riscv64-linux native)
+      run: |
+        uname -m  # riscv64
+        ./configure && make && make test -k

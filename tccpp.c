@@ -942,11 +942,11 @@ redo_start:
                 else if (parse_flags & PARSE_FLAG_ASM_FILE)
                     p = parse_line_comment(p - 1);
             }
-#if !defined(TCC_TARGET_ARM)
+#if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_ARM64)
             else if (parse_flags & PARSE_FLAG_ASM_FILE)
                 p = parse_line_comment(p - 1);
 #else
-            /* ARM assembly uses '#' for constants */
+            /* ARM/ARM64 assembly uses '#' for constants */
 #endif
             break;
 _default:
@@ -987,11 +987,7 @@ static inline int tok_size(const int *p)
     case TOK_CULLONG:
         return 1 + 2;
     case TOK_CLDOUBLE:
-#ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
-        return 1 + 8 / 4;
-#else
-        return 1 + LDOUBLE_SIZE / 4;
-#endif
+        return 1 + LDOUBLE_WORDS;
     default:
         return 1 + 0;
     }
@@ -1130,22 +1126,12 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
         str[len++] = cv->tab[1];
         break;
     case TOK_CLDOUBLE:
-#if LDOUBLE_SIZE == 8 || defined TCC_USING_DOUBLE_FOR_LDOUBLE
         str[len++] = cv->tab[0];
         str[len++] = cv->tab[1];
-#elif LDOUBLE_SIZE == 12
-        str[len++] = cv->tab[0];
-        str[len++] = cv->tab[1];
+        if (LDOUBLE_WORDS >= 3)
         str[len++] = cv->tab[2];
-#elif LDOUBLE_SIZE == 16
-        str[len++] = cv->tab[0];
-        str[len++] = cv->tab[1];
-        str[len++] = cv->tab[2];
+        if (LDOUBLE_WORDS >= 4)
         str[len++] = cv->tab[3];
-#else
-#error add long double size support
-#endif
-        break;
     default:
         break;
     }
@@ -1219,15 +1205,7 @@ static inline void tok_get(int *t, const int **pp, CValue *cv)
         n = 2;
         goto copy;
     case TOK_CLDOUBLE:
-#if LDOUBLE_SIZE == 8 || defined TCC_USING_DOUBLE_FOR_LDOUBLE
-        n = 2;
-#elif LDOUBLE_SIZE == 12
-        n = 3;
-#elif LDOUBLE_SIZE == 16
-        n = 4;
-#else
-# error add long double size support
-#endif
+        n = LDOUBLE_WORDS;
     copy:
         do
             *tab++ = *p++;
@@ -2015,7 +1993,7 @@ ST_FUNC void preprocess(int is_bof)
         if (tok == '!' && is_bof)
             /* '#!' is ignored at beginning to allow C scripts. */
             goto ignore;
-        tcc_warning("Ignoring unknown preprocessing directive #%s", get_tok_str(tok, &tokc));
+        tcc_warning("ignoring unknown preprocessing directive #%s", get_tok_str(tok, &tokc));
     ignore:
         skip_to_eol(0);
         goto the_end;
@@ -2254,13 +2232,8 @@ static void parse_string(const char *s, int len)
     }
 }
 
-#ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
-/* we use 64 bit (52 needed) numbers */
-#define BN_SIZE 2
-#else
 /* we use 128 bit (64/112 needed) numbers */
 #define BN_SIZE 4
-#endif
 
 /* bn = (bn << shift) | or_val */
 static int bn_lshift(unsigned int *bn, int shift, int or_val)
@@ -2292,11 +2265,7 @@ static void parse_number(const char *p)
     int b, t, shift, frac_bits, s, exp_val, ch;
     char *q;
     unsigned int bn[BN_SIZE];
-#ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
-    double d;
-#else
     long double d;
-#endif
 
     /* number */
     q = token_buf;
@@ -2408,19 +2377,14 @@ static void parse_number(const char *p)
                 ch = *p++;
             }
             exp_val = exp_val * s;
-            
+
             /* now we can generate the number */
             /* XXX: should patch directly float number */
-#ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
-            d = (double)bn[1] * 4294967296.0 + (double)bn[0];
-            d = ldexp(d, exp_val - frac_bits);
-#else
             d = (long double)bn[3] * 79228162514264337593543950336.0L +
 	        (long double)bn[2] * 18446744073709551616.0L +
 	        (long double)bn[1] * 4294967296.0L +
 	        (long double)bn[0];
             d = ldexpl(d, exp_val - frac_bits);
-#endif
             t = toup(ch);
             if (t == 'F') {
                 ch = *p++;
@@ -2430,11 +2394,7 @@ static void parse_number(const char *p)
             } else if (t == 'L') {
                 ch = *p++;
                 tok = TOK_CLDOUBLE;
-#ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
-                tokc.d = d;
-#else
                 tokc.ld = d;
-#endif
             } else {
                 tok = TOK_CDOUBLE;
                 tokc.d = (double)d;
@@ -2484,11 +2444,7 @@ static void parse_number(const char *p)
             } else if (t == 'L') {
                 ch = *p++;
                 tok = TOK_CLDOUBLE;
-#ifdef TCC_USING_DOUBLE_FOR_LDOUBLE
-                tokc.d = strtod(token_buf, NULL);
-#else
                 tokc.ld = strtold(token_buf, NULL);
-#endif
             } else {
                 tok = TOK_CDOUBLE;
                 tokc.d = strtod(token_buf, NULL);
@@ -2698,7 +2654,7 @@ maybe_newline:
                 p++;
                 tok = TOK_TWOSHARPS;
             } else {
-#if !defined(TCC_TARGET_ARM)
+#if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_ARM64)
                 if (parse_flags & PARSE_FLAG_ASM_FILE) {
                     p = parse_line_comment(p - 1);
                     goto redo_no_start;
@@ -3711,7 +3667,7 @@ ST_FUNC void preprocess_start(TCCState *s1, int filetype)
     s1->pack_stack[0] = 0;
     s1->pack_stack_ptr = s1->pack_stack;
 
-    set_idnum('$', !is_asm && s1->dollars_in_identifiers ? IS_ID : 0);
+    set_idnum('$', s1->dollars_in_identifiers ? IS_ID : 0);
     set_idnum('.', is_asm ? IS_ID : 0);
 
     if (!(filetype & AFF_TYPE_ASM)) {

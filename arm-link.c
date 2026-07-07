@@ -18,11 +18,6 @@
 #define PCRELATIVE_DLLPLT 1
 #define RELOCATE_DLLPLT 1
 
-enum float_abi {
-    ARM_SOFTFP_FLOAT,
-    ARM_HARD_FLOAT,
-};
-
 #else /* !TARGET_DEFS_ONLY */
 
 #include "tcc.h"
@@ -49,6 +44,7 @@ ST_FUNC int code_reloc (int reloc_type)
 	case R_ARM_TARGET1:
 	case R_ARM_MOVT_PREL:
 	case R_ARM_MOVW_PREL_NC:
+	case R_ARM_TLS_LE32:
             return 0;
 
         case R_ARM_PC24:
@@ -75,6 +71,7 @@ ST_FUNC int gotplt_entry_type (int reloc_type)
 	case R_ARM_COPY:
 	case R_ARM_GLOB_DAT:
 	case R_ARM_JUMP_SLOT:
+	case R_ARM_TLS_LE32:
             return NO_GOTPLT_ENTRY;
 
         case R_ARM_PC24:
@@ -434,6 +431,36 @@ ST_FUNC void relocate(TCCState *s1, ElfW_Rel *rel, int type, unsigned char *ptr,
             add32le(ptr, val - s1->pe_imagebase);
 #endif
             /* do nothing */
+            return;
+        case R_ARM_TLS_LE32:
+            {
+                ElfW(Sym) *sym;
+                Section *sec;
+                int32_t x;
+                addr_t tls_start = 0, tls_end = 0, tls_align = 1;
+                int i;
+
+                sym = &((ElfW(Sym) *)symtab_section->data)[sym_index];
+                sec = s1->sections[sym->st_shndx];
+
+                for (i = 1; i < s1->nb_sections; i++) {
+                    Section *s = s1->sections[i];
+                    if (s->sh_flags & SHF_TLS && s->sh_size) {
+                        if (!tls_start || s->sh_addr < tls_start)
+                            tls_start = s->sh_addr;
+                        if (s->sh_addr + s->sh_size > tls_end)
+                            tls_end = s->sh_addr + s->sh_size;
+                        if (s->sh_addralign > tls_align)
+                            tls_align = s->sh_addralign;
+                    }
+                }
+                if (tls_end > tls_start) {
+                    x = val - tls_start + 8;
+                } else {
+                    x = val - sec->sh_addr - sec->data_offset + 8;
+                }
+                add32le(ptr, x);
+            }
             return;
         default:
             fprintf(stderr,"FIXME: handle reloc type %d at %x [%p] to %x\n",

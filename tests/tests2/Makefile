@@ -19,6 +19,9 @@ ifeq (,$(filter i386 x86_64,$(ARCH)))
  SKIP += 85_asm-outside-function.test # x86 asm
  SKIP += 127_asm_goto.test    # hardcodes x86 asm
 endif
+ifeq (,$(filter x86_64 riscv64 arm64 i386,$(ARCH)))
+ SKIP += 144_tls.test # TLS only implemented on these architectures so far
+endif
 ifeq ($(CONFIG_backtrace),no)
  SKIP += 113_btdll.test
  CONFIG_bcheck = no
@@ -47,24 +50,28 @@ ifeq (-$(CONFIG_WIN32)-,-yes-)
  SKIP += 114_bound_signal.test # No pthread support
  SKIP += 117_builtins.test # win32 port doesn't define __builtins
  SKIP += 124_atomic_counter.test # No pthread support
-endif
-# Skip x86-specific inline asm tests for non-x86 architectures
-ifneq (,$(filter arm% riscv%,$(ARCH)))
- SKIP += 85_asm-outside-function.test
- SKIP += 98_al_ax_extend.test
- SKIP += 99_fastcall.test
- SKIP += 127_asm_goto.test
-endif
-# Skip pthread tests for Windows cross-compilation targets
-ifneq (,$(findstring win32,$(CROSS_TARGET)))
- SKIP += 106_versym.test
- SKIP += 114_bound_signal.test
- SKIP += 124_atomic_counter.test
+ SKIP += 144_tls.test # No pthread support
 endif
 ifneq (,$(filter OpenBSD FreeBSD NetBSD,$(TARGETOS)))
  SKIP += 106_versym.test # no pthread_condattr_setpshared
  SKIP += 114_bound_signal.test # libc problem signal/fork
  SKIP += 116_bound_setjmp2.test # No TLS_FUNC/TLS_VAR in bcheck.c
+endif
+ifdef CONFIG_OSX
+ SKIP += 144_tls.test # TLS runtime not supported on Mach-O
+endif
+ifeq (,$(filter arm64 aarch64,$(ARCH)))
+ SKIP += 138_arm64_encoding.test
+ SKIP += 139_arm64_errors.test
+ SKIP += 140_arm64_extasm.test
+endif
+ifneq ($(CONFIG_WIN32),yes)
+ SKIP += 145_winarm64_interlocked.test
+else ifeq (,$(filter arm64 aarch64,$(ARCH)))
+ SKIP += 145_winarm64_interlocked.test
+endif
+ifeq (,$(filter riscv64,$(ARCH)))
+ SKIP += 141_riscv_asm.test # riscv64 asm
 endif
 
 # Some tests might need arguments
@@ -75,6 +82,7 @@ ARGS =
 # And some tests don't test the right thing with -run
 NORUN =
 42_function_pointer.test : NORUN = true
+# riscv64 asm tests validate encoding, raw regs may crash at runtime
 
 # Some tests might need different flags
 FLAGS =
@@ -87,8 +95,8 @@ endif
 # These tests run several snippets from the same file one by one
 60_errors_and_warnings.test : FLAGS += -dt
 96_nodata_wanted.test : FLAGS += -dt
+139_arm64_errors.test : FLAGS += -dt
 
-# Always generate certain .expects (don't put these in the GIT),
 GEN-ALWAYS =
 # GEN-ALWAYS += 95_bitfields.expect # does not work
 
@@ -110,6 +118,10 @@ GEN-ALWAYS =
 
 # constructor/destructor
 108_constructor.test: NORUN = true
+
+# TLS needs executable and pthread, not -run
+144_tls.test: FLAGS += -pthread
+144_tls.test: NORUN = true
 
 112_backtrace.test: FLAGS += -dt -b
 112_backtrace.test 113_btdll.test 126_bound_global.test: FILTER += \
@@ -138,6 +150,8 @@ endif
 126_bound_global.test: NORUN = true
 128_run_atexit.test: FLAGS += -dt
 132_bound_test.test: FLAGS += -b
+140_arm64_extasm.test: GEN = $(GEN-TCC)
+141_riscv_asm.test: GEN = $(GEN-TCC)
 
 # Filter source directory in warnings/errors (out-of-tree builds)
 FILTER = 2>&1 | sed -e 's,$(SRC)/,,g'

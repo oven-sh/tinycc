@@ -2336,7 +2336,8 @@ typedef Elf32_Addr Elf32_Conflict;
 /* Processor specific values for the Shdr sh_type field.  */
 #define SHT_ARM_EXIDX		(SHT_LOPROC + 1) /* ARM unwind section.  */
 #define SHT_ARM_PREEMPTMAP	(SHT_LOPROC + 2) /* Preemption details.  */
-#define SHT_ARM_ATTRIBUTES	(SHT_LOPROC + 3) /* ARM attributes section.  */
+#define	SHT_ARM_ATTRIBUTES	(SHT_LOPROC + 3) /* ARM attributes section.  */
+#define SHT_RISCV_ATTRIBUTES	0x70000003
 
 
 /* AArch64 relocs.  */

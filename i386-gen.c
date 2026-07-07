@@ -271,7 +271,7 @@ static void gen_modrm(int opc, int op_r2, int r, Sym *sym, int c)
     } else if ((r & VT_VALMASK) == VT_LOCAL) {
 	o(opc);
         /* currently, we use only ebp as base */
-        if (c == (char)c) {
+        if (c == (signed char)c) {
             /* short reference */
             o(0x45 | op_reg);
             g(c);
@@ -313,6 +313,16 @@ ST_FUNC void load(int r, SValue *sv)
 #endif
 
     if (fr & VT_LVAL) {
+        if ((fr & VT_SYM) && sv->sym->type.t & VT_TLS) {
+            int dst_reg = REG_VALUE(r);
+            o(0x65); /* gs segment prefix */
+            o(0x8b); /* mov r/m, r */
+            o(0x04 | (dst_reg << 3)); /* modrm: [sib] | destreg */
+            o(0x25); /* sib: disp32 */
+            greloca(cur_text_section, sv->sym, ind, R_386_TLS_LE, fc);
+            gen_le32(0);
+            return;
+        }
         if (v == VT_LLOCAL) {
             v1.type.t = VT_INT;
             v1.r = VT_LOCAL | VT_LVAL;
@@ -429,6 +439,16 @@ ST_FUNC void store(int r, SValue *v)
     } else
 #endif
 
+    if ((fr & VT_SYM) && v->sym->type.t & VT_TLS) {
+        o(0x65); /* gs segment prefix */
+        o(opc);
+        o(0x04 | (REG_VALUE(r) << 3)); /* modrm: [sib] | srcreg */
+        o(0x25); /* sib: disp32 */
+        greloca(cur_text_section, v->sym, ind, R_386_TLS_LE, fc);
+        gen_le32(0);
+        return;
+    }
+
     if (fr == VT_CONST || fr == VT_LOCAL || (v->r & VT_LVAL)) {
         gen_modrm(opc, r, v->r, v->sym, fc);
     } else if (fr != r) {
@@ -439,7 +459,7 @@ ST_FUNC void store(int r, SValue *v)
 
 static void gadd_sp(int val)
 {
-    if (val == (char)val) {
+    if (val == (signed char)val) {
         o(0xc483);
         g(val);
     } else {
@@ -774,7 +794,7 @@ ST_FUNC void gjmp_addr(int a)
 {
     int r;
     r = a - ind - 2;
-    if (r == (char)r) {
+    if (r == (signed char)r) {
         g(0xeb);
         g(r);
     } else {
@@ -787,7 +807,7 @@ ST_FUNC void gjmp_addr(int a)
 ST_FUNC void gjmp_cond_addr(int a, int op)
 {
     int r = a - ind - 2;
-    if (r == (char)r)
+    if (r == (signed char)r)
         g(op - 32), g(r);
     else
         g(0x0f), gjmp2(op - 16, r - 4);
@@ -830,7 +850,7 @@ ST_FUNC void gen_opi(int op)
             r = gv(RC_INT);
             vswap();
             c = vtop->c.i;
-            if (c == (char)c) {
+            if (c == (signed char)c) {
                 /* generate inc and dec for smaller code */
                 if ((c == 1 || c == -1) && (op == '+' || op == '-')) {
                     opc = (c == 1) ^ (op == '+');
@@ -1176,6 +1196,22 @@ ST_FUNC void ggoto(void)
 /* bound check support functions */
 #ifdef CONFIG_TCC_BCHECK
 
+/* Need PIC for shared libraries */
+static void gen_bound_call(int v)
+{
+    Sym *sym;
+
+    sym = external_helper_sym(v);
+#if defined CONFIG_TCC_PIC
+    get_pc_thunk(TREG_EBX, 1);
+    oad(0xe8, -4);
+    greloc(cur_text_section, sym, ind - 4, R_386_PLT32);
+#else
+    oad(0xe8, -4);
+    greloc(cur_text_section, sym, ind - 4, R_386_PC32);
+#endif
+}
+
 static void gen_bounds_prolog(void)
 {
     /* leave some room for bound checking code */
@@ -1224,7 +1260,7 @@ static void gen_bounds_epilog(void)
         greloc(cur_text_section, sym_data, ind + 1, R_386_32);
         ind = ind + 5;
 #endif
-        gen_static_call(TOK___bound_local_new);
+        gen_bound_call(TOK___bound_local_new);
         ind = saved_ind;
     }
 
@@ -1239,7 +1275,7 @@ static void gen_bounds_epilog(void)
     greloc(cur_text_section, sym_data, ind + 1, R_386_32);
     oad(0xb8, 0); /* mov %eax, xxx */
 #endif
-    gen_static_call(TOK___bound_local_delete);
+    gen_bound_call(TOK___bound_local_delete);
     o(0x585a); /* restore returned value, if any */
 }
 #endif

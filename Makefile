@@ -31,9 +31,11 @@ ifdef CONFIG_WIN32
   LIBTCCDEF = libtcc.def
  endif
  ifneq ($(CONFIG_debug),yes)
-  LDFLAGS += -s
+  ifneq ($(CC_NAME),clang)
+   LDFLAGS += -s
+  endif
  endif
- NATIVE_TARGET = $(ARCH)-win$(if $(findstring arm,$(ARCH)),ce,32)
+ NATIVE_TARGET = $(if $(findstring arm64,$(ARCH)),arm64-win32,$(ARCH)-win$(if $(findstring arm,$(ARCH)),ce,32))
 else
  CFG = -unx
  LIBS+=-lm
@@ -156,10 +158,27 @@ all : cross
 endif
 
 # --------------------------------------------
-
-T = $(or $(CROSS_TARGET),$(NATIVE_TARGET),unknown)
+T = $(or $(CROSS_TARGET),$(NATIVE_TARGET))
 X = $(if $(CROSS_TARGET),$(CROSS_TARGET)-)
 
+ifneq ($(T),$(NATIVE_TARGET))
+$(if $(DEF-$T),,$(error error: unknown target: '$T'))
+ifneq ($(CONFIG_WIN32),yes)
+DEF-win = -DCONFIG_TCCDIR="\"$(tccdir)/win32\""
+endif
+# some default config for cross compilers
+TRIPLET-i386 = i686-linux-gnu
+TRIPLET-x86_64 = x86_64-linux-gnu
+TRIPLET-arm = arm-linux-gnueabihf
+TRIPLET-arm64 = aarch64-linux-gnu
+TRIPLET-riscv64 = riscv64-linux-gnu
+ifneq ($(TRIPLET-$T),)
+# assume support files in "/usr/<triplet>"
+ROOT-$T = /usr/$(TRIPLET-$T)
+INC-$T = {B}/include:{R}/include
+LIB-$T = {R}/lib:{B}
+CRT-$T = {R}/lib
+endif
 DEFINES += $(DEF-$T)
 DEFINES += $(if $(ROOT-$T),-DCONFIG_SYSROOT="\"$(ROOT-$T)\"")
 DEFINES += $(if $(CRT-$T),-DCONFIG_TCC_CRTPREFIX="\"$(CRT-$T)\"")
@@ -167,36 +186,17 @@ DEFINES += $(if $(LIB-$T),-DCONFIG_TCC_LIBPATHS="\"$(LIB-$T)\"")
 DEFINES += $(if $(INC-$T),-DCONFIG_TCC_SYSINCLUDEPATHS="\"$(INC-$T)\"")
 DEFINES += $(if $(ELF-$T),-DCONFIG_TCC_ELFINTERP="\"$(ELF-$T)\"")
 DEFINES += $(DEF-$(or $(findstring win,$T),unx))
-
-ifneq ($(X),)
-$(if $(DEF-$T),,$(error error: unknown target: '$T'))
-DEF-$(NATIVE_TARGET) =
-DEF-$T += -DCONFIG_TCC_CROSSPREFIX="\"$X\""
-ifneq ($(CONFIG_WIN32),yes)
-DEF-win += -DCONFIG_TCCDIR="\"$(tccdir)/win32\""
-endif
-else
-# using values from config.h
-DEF-$(NATIVE_TARGET) =
+DEFINES += -DCONFIG_TCC_CROSSPREFIX="\"$X\""
 endif
 
 # include custom configuration (see make help)
 -include config-extra.mak
 
-ifneq ($(T),$(NATIVE_TARGET))
-# assume support files for cross-targets in "/usr/<triplet>" by default
-TRIPLET-i386 ?= i686-linux-gnu
-TRIPLET-x86_64 ?= x86_64-linux-gnu
-TRIPLET-arm ?= arm-linux-gnueabi
-TRIPLET-arm64 ?= aarch64-linux-gnu
-TRIPLET-riscv64 ?= riscv64-linux-gnu
-MARCH-i386 ?= i386-linux-gnu
-MARCH-$T ?= $(TRIPLET-$T)
-TR = $(if $(TRIPLET-$T),$T,ignored)
-CRT-$(TR) ?= /usr/$(TRIPLET-$T)/lib
-LIB-$(TR) ?= {B}:/usr/$(TRIPLET-$T)/lib:/usr/lib/$(MARCH-$T)
-INC-$(TR) ?= {B}/include:/usr/$(TRIPLET-$T)/include:/usr/include
-endif
+# so one can use: make EXTRA-DEFS=...
+DEFINES += $(EXTRA-DEFS)
+
+# find config.h with 'out of tree' builds
+DEFINES += -I$(TOP)
 
 CORE_FILES = tcc.c tcctools.c libtcc.c tccpp.c tccgen.c tccdbg.c tccelf.c tccasm.c tccrun.c
 CORE_FILES += tcc.h config.h libtcc.h tcctok.h
@@ -207,13 +207,12 @@ x86_64-win32_FILES = $(x86_64_FILES) tccpe.c
 x86_64-osx_FILES = $(x86_64_FILES) tccmacho.c
 arm_FILES = $(CORE_FILES) arm-gen.c arm-link.c arm-asm.c arm-tok.h
 arm-wince_FILES = $(arm_FILES) tccpe.c
-arm-eabihf_FILES = $(arm_FILES)
 arm-fpa_FILES     = $(arm_FILES)
 arm-fpa-ld_FILES  = $(arm_FILES)
 arm-vfp_FILES     = $(arm_FILES)
 arm-eabi_FILES    = $(arm_FILES)
 arm-eabihf_FILES  = $(arm_FILES)
-arm64_FILES = $(CORE_FILES) arm64-gen.c arm64-link.c arm64-asm.c
+arm64_FILES = $(CORE_FILES) arm64-gen.c arm64-link.c arm64-asm.c arm64-tok.h
 arm64-osx_FILES = $(arm64_FILES) tccmacho.c
 arm64-win32_FILES = $(arm64_FILES) tccpe.c
 c67_FILES = $(CORE_FILES) c67-gen.c c67-link.c tcccoff.c
@@ -239,7 +238,6 @@ $(CROSS_TARGET)-tcc.o : DEFINES += -DONE_SOURCE=0
 endif
 # native tcc always made from tcc.o and libtcc.[so|a]
 tcc.o : DEFINES += -DONE_SOURCE=0
-DEFINES += -I$(TOP)
 
 GITHASH:=$(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo no)
 ifneq ($(GITHASH),no)
@@ -258,7 +256,7 @@ endif
 	$S./c2str.exe $< $@
 
 c2str.exe : conftest.c
-	$S$(HOST_CC) -DC2STR $< -o $@
+	$S$(CC) -DC2STR $< -o $@
 
 # target specific object rule
 $(X)%.o : %.c $(LIBTCC_INC)
@@ -338,7 +336,7 @@ FORCE:
 # some versions of gnu-make do not recognize 'command' as a shell builtin
 WHICH = sh -c 'command -v $1'
 
-run-if = $(if $(shell $(call WHICH,$1)),$S $1 $2)
+run-if = $(if $(shell $(call WHICH,$1x)),$S $1 $2,@true||echo "(skipping $@ - no $1)")
 S = $(if $(findstring yes,$(SILENT)),@$(info * $@))
 
 # --------------------------------------------------------------------------
@@ -499,14 +497,14 @@ distclean: clean
 help:
 	@echo "make"
 	@echo "   build native compiler (from separate objects)"
-	@echo "make cross"
-	@echo "   build cross compilers (from one source)"
 	@echo "make ONE_SOURCE=no/yes SILENT=no/yes"
 	@echo "   force building from separate/one object(s), less/more silently"
 	@echo "make cross-TARGET"
 	@echo "   build one specific cross compiler for 'TARGET'. Currently supported:"
 	@echo "   $(wordlist 1,8,$(TCC_X))"
 	@echo "   $(wordlist 9,99,$(TCC_X))"
+	@echo "make cross"
+	@echo "   build all cross compilers"
 	@echo "make test"
 	@echo "   run all tests"
 	@echo "make tests2.all / make tests2.37 / make tests2.37+"

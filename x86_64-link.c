@@ -13,7 +13,7 @@
 #define R_NUM       R_X86_64_NUM
 
 #define ELF_START_ADDR 0x400000
-#define ELF_PAGE_SIZE  0x200000
+#define ELF_PAGE_SIZE  0x1000
 
 #define PCRELATIVE_DLLPLT 1
 #define RELOCATE_DLLPLT 1
@@ -96,13 +96,15 @@ ST_FUNC int gotplt_entry_type (int reloc_type)
         case R_X86_64_TLSGD:
         case R_X86_64_TLSLD:
         case R_X86_64_DTPOFF32:
-        case R_X86_64_TPOFF32:
         case R_X86_64_DTPOFF64:
-        case R_X86_64_TPOFF64:
         case R_X86_64_REX_GOTPCRELX:
         case R_X86_64_PLT32:
         case R_X86_64_PLTOFF64:
             return ALWAYS_GOTPLT_ENTRY;
+
+        case R_X86_64_TPOFF32:
+        case R_X86_64_TPOFF64:
+            return NO_GOTPLT_ENTRY;
     }
 
     return -1;
@@ -372,10 +374,30 @@ ST_FUNC void relocate(TCCState *s1, ElfW_Rel *rel, int type, unsigned char *ptr,
                 ElfW(Sym) *sym;
                 Section *sec;
                 int32_t x;
+                addr_t tls_start = 0, tls_end = 0, tls_align = 1;
+                int i;
 
                 sym = &((ElfW(Sym) *)symtab_section->data)[sym_index];
                 sec = s1->sections[sym->st_shndx];
-                x = val - sec->sh_addr - sec->data_offset;
+
+                for (i = 1; i < s1->nb_sections; i++) {
+                    Section *s = s1->sections[i];
+                    if (s->sh_flags & SHF_TLS && s->sh_size) {
+                        if (!tls_start || s->sh_addr < tls_start)
+                            tls_start = s->sh_addr;
+                        if (s->sh_addr + s->sh_size > tls_end)
+                            tls_end = s->sh_addr + s->sh_size;
+                        if (s->sh_addralign > tls_align)
+                            tls_align = s->sh_addralign;
+                    }
+                }
+                if (tls_end > tls_start) {
+                    addr_t tls_size = tls_end - tls_start;
+                    addr_t aligned_size = (tls_size + tls_align - 1) & ~(tls_align - 1);
+                    x = val - (tls_start + aligned_size);
+                } else {
+                    x = val - sec->sh_addr - sec->data_offset;
+                }
                 add32le(ptr, x);
             }
             break;
@@ -385,10 +407,30 @@ ST_FUNC void relocate(TCCState *s1, ElfW_Rel *rel, int type, unsigned char *ptr,
                 ElfW(Sym) *sym;
                 Section *sec;
                 int32_t x;
+                addr_t tls_start = 0, tls_end = 0, tls_align = 1;
+                int i;
 
                 sym = &((ElfW(Sym) *)symtab_section->data)[sym_index];
                 sec = s1->sections[sym->st_shndx];
-                x = val - sec->sh_addr - sec->data_offset;
+
+                for (i = 1; i < s1->nb_sections; i++) {
+                    Section *s = s1->sections[i];
+                    if (s->sh_flags & SHF_TLS && s->sh_size) {
+                        if (!tls_start || s->sh_addr < tls_start)
+                            tls_start = s->sh_addr;
+                        if (s->sh_addr + s->sh_size > tls_end)
+                            tls_end = s->sh_addr + s->sh_size;
+                        if (s->sh_addralign > tls_align)
+                            tls_align = s->sh_addralign;
+                    }
+                }
+                if (tls_end > tls_start) {
+                    addr_t tls_size = tls_end - tls_start;
+                    addr_t aligned_size = (tls_size + tls_align - 1) & ~(tls_align - 1);
+                    x = val - (tls_start + aligned_size);
+                } else {
+                    x = val - sec->sh_addr - sec->data_offset;
+                }
                 add64le(ptr, x);
             }
             break;

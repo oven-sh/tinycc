@@ -267,14 +267,6 @@ ST_FUNC void gen_addr32(int r, Sym *sym, int c)
 }
 
 /* output constant with relocation if 'r & VT_SYM' is true */
-ST_FUNC void gen_addr64(int r, Sym *sym, int64_t c)
-{
-    if (r & VT_SYM)
-        greloca(cur_text_section, sym, ind, R_X86_64_64, c), c=0;
-    gen_le64(c);
-}
-
-/* output constant with relocation if 'r & VT_SYM' is true */
 ST_FUNC void gen_addrpc32(int r, Sym *sym, int c)
 {
     if (r & VT_SYM)
@@ -322,7 +314,7 @@ static void gen_modrm_impl(int op_reg, int r, Sym *sym, int c, int is_got)
 	}
     } else if ((r & VT_VALMASK) == VT_LOCAL) {
         /* currently, we use only ebp as base */
-        if (c == (char)c) {
+        if (c == (signed char)c) {
             /* short reference */
             o(0x45 | op_reg);
             g(c);
@@ -376,7 +368,8 @@ void load(int r, SValue *sv)
 #ifndef TCC_TARGET_PE
     /* we use indirect access via got */
     if ((fr & VT_VALMASK) == VT_CONST && (fr & VT_SYM) &&
-        (fr & VT_LVAL) && !(sv->sym->type.t & VT_STATIC)) {
+        (fr & VT_LVAL) && !(sv->sym->type.t & VT_STATIC)
+        && !(sv->sym->type.t & VT_TLS)) {
         /* use the result register as a temporal register */
         int tr = r | TREG_MEM;
         if (is_float(ft)) {
@@ -393,6 +386,19 @@ void load(int r, SValue *sv)
     v = fr & VT_VALMASK;
     if (fr & VT_LVAL) {
         int b, ll;
+        if ((fr & VT_SYM) && sv->sym->type.t & VT_TLS) {
+            int dst_reg = REG_VALUE(r);
+            int is64 = is64_type(ft);
+            o(0x64); /* fs segment prefix */
+            if (is64 || REX_BASE(r))
+                o(0x40 | (REX_BASE(r) << 0) | (is64 << 3)); /* rex.w/rex.r */
+            o(0x8b); /* mov r/m, r */
+            o(0x04 | (dst_reg << 3)); /* modrm: [sib] | destreg */
+            o(0x25); /* sib: disp32 */
+            greloca(cur_text_section, sv->sym, ind, R_X86_64_TPOFF32, fc);
+            gen_le32(0);
+            return;
+        }
         if (v == VT_LLOCAL) {
             v1.type.t = VT_PTR;
             v1.r = VT_LOCAL | VT_LVAL;
@@ -444,8 +450,7 @@ void load(int r, SValue *sv)
             b = 0xdb, r = 5; /* fldt */
         } else if ((ft & VT_TYPE) == VT_BYTE || (ft & VT_TYPE) == VT_BOOL) {
             b = 0xbe0f;   /* movsbl */
-        } else if ((ft & VT_TYPE) == (VT_BYTE | VT_UNSIGNED) ||
-		   (ft & VT_TYPE) == (VT_BOOL | VT_UNSIGNED)) {
+        } else if ((ft & VT_TYPE) == (VT_BYTE | VT_UNSIGNED)) {
             b = 0xb60f;   /* movzbl */
         } else if ((ft & VT_TYPE) == VT_SHORT) {
             b = 0xbf0f;   /* movswl */
@@ -495,7 +500,8 @@ void load(int r, SValue *sv)
                     orex(0,r,0, 0xb8 + REG_VALUE(r)); /* mov $xx, r */
                     gen_le32(sv->c.i);
                 } else {
-                    o(0xc031 + REG_VALUE(r) * 0x900); /* xor r, r */
+                    orex(0, r, r, 0x31); /* xor r, r */
+                    o(0xc0 + REG_VALUE(r) * 9);
                 }
             } else {
                 orex(0,r,0, 0xb8 + REG_VALUE(r)); /* mov $xx, r */
@@ -539,8 +545,7 @@ void load(int r, SValue *sv)
                     o(0x44 + REG_VALUE(r)*8); /* %xmmN */
                     o(0xf024);
                 } else {
-		    if (!nocode_wanted)
-                        assert((v >= TREG_XMM0) && (v <= TREG_XMM7));
+                    assert((v >= TREG_XMM0) && (v <= TREG_XMM7));
                     if ((ft & VT_BTYPE) == VT_FLOAT) {
                         o(0x100ff3);
                     } else {
@@ -550,8 +555,7 @@ void load(int r, SValue *sv)
                     o(0xc0 + REG_VALUE(v) + REG_VALUE(r)*8);
                 }
             } else if (r == TREG_ST0) {
-		if (!nocode_wanted)
-                    assert((v >= TREG_XMM0) && (v <= TREG_XMM7));
+                assert((v >= TREG_XMM0) && (v <= TREG_XMM7));
                 /* gen_cvt_ftof(VT_LDOUBLE); */
                 /* movsd %xmmN,-0x10(%rsp) */
                 o(0x110ff2);
@@ -581,6 +585,20 @@ void store(int r, SValue *v)
       tcc_error("64 bit addend in store");
     ft &= ~(VT_VOLATILE | VT_CONSTANT);
     bt = ft & VT_BTYPE;
+
+    if ((v->r & VT_SYM) && v->sym->type.t & VT_TLS) {
+        int src_reg = REG_VALUE(r);
+        int is64 = is64_type(bt);
+        o(0x64);
+        if (is64 || REX_BASE(r))
+            o(0x40 | (REX_BASE(r) << 0) | (is64 << 3));
+        o(0x89);
+        o(0x04 | (src_reg << 3));
+        o(0x25);
+        greloca(cur_text_section, v->sym, ind, R_X86_64_TPOFF32, fc);
+        gen_le32(0);
+        return;
+    }
 
 #ifndef TCC_TARGET_PE
     /* we need to access the variable via got */
@@ -756,7 +774,7 @@ static int arg_prepare_reg(int idx) {
 static void gen_offs_sp(int b, int r, int d)
 {
     orex(1,0,r & 0x100 ? 0 : r, b);
-    if (d == (char)d) {
+    if (d == (signed char)d) {
         o(0x2444 | (REG_VALUE(r) << 3));
         g(d);
     } else {
@@ -1059,7 +1077,7 @@ void gfunc_epilog(void)
 
 static void gadd_sp(int val)
 {
-    if (val == (char)val) {
+    if (val == (signed char)val) {
         o(0xc48348);
         g(val);
     } else {
@@ -1642,7 +1660,7 @@ void gjmp_addr(int a)
 {
     int r;
     r = a - ind - 2;
-    if (r == (char)r) {
+    if (r == (signed char)r) {
         g(0xeb);
         g(r);
     } else {
@@ -1711,7 +1729,7 @@ void gen_opi(int op)
             r = gv(RC_INT);
             vswap();
             c = vtop->c.i;
-            if (c == (char)c) {
+            if (c == (signed char)c) {
                 /* XXX: generate inc and dec for smaller code ? */
                 orex(ll, r, 0, 0x83);
                 o(0xc0 | (opc << 3) | REG_VALUE(r));
@@ -1839,6 +1857,7 @@ void gen_opf(int op)
             o(0x80); /* xor $0x80, $n(rbp) */
             gen_modrm(6, vtop->r, NULL, vtop->c.i + (bt == VT_DOUBLE ? 7 : 3));
             o(0x80);
+            gv(float_type); /* -n is not a lvalue */
         }
         return;
     }

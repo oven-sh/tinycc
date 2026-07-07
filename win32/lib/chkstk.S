@@ -9,23 +9,31 @@
 
 /* ---------------------------------------------- */
 #if defined(__aarch64__)
-/* ---------------------------------------------- */
 
 .globl __chkstk
 __chkstk:
-    lsl     x15, x15, #4
+    /* Windows ARM64 stack probing helper.
+       arm64-gen.c passes the requested frame size in x15, scaled in 16-byte
+       units. Probe one 4 KiB page at a time and leave SP unchanged; the caller
+       subtracts SP after the probe returns. */
     mov     x16, sp
-1:
-    sub     x16, x16, #4096
+    lsl     x17, x15, 4
+    cbz     x17, L_chkstk_done
+L_chkstk_loop:
+    subs    x0, x17, 4096
+    bls     L_chkstk_tail
+    sub     x16, x16, 4096
     ldr     xzr, [x16]
-    subs    x15, x15, #4096
-    b.gt    1b
-    mov     sp, x16
+    sub     x17, x17, 4096
+    b       L_chkstk_loop
+L_chkstk_tail:
+    sub     x16, x16, x17
+    ldr     xzr, [x16]
+L_chkstk_done:
     ret
 
 /* ---------------------------------------------- */
-#elif !defined(__x86_64__)
-/* ---------------------------------------------- */
+#elif defined(__i386__)
 
 .globl _(__chkstk)
 _(__chkstk):
@@ -49,8 +57,7 @@ P0:
     jmp     *4(%eax)
 
 /* ---------------------------------------------- */
-#else
-/* ---------------------------------------------- */
+#else /* __x86_64__ */
 
 .globl _(__chkstk)
 _(__chkstk):
@@ -75,14 +82,5 @@ P0:
     jmp     *8(%rax)
 
 /* ---------------------------------------------- */
-/* setjmp/longjmp support */
-
-.globl _(tinyc_getbp)
-_(tinyc_getbp):
-    mov %rbp,%rax
-    ret
-
-/* ---------------------------------------------- */
 #endif
 /* ---------------------------------------------- */
-
