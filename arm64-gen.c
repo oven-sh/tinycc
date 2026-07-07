@@ -309,7 +309,7 @@ static uint64_t arm64_check_offset(int invert, int sz_, uint64_t off)
     else if (off & scaled_mask)
         return invert ? off & scaled_mask : off & ~scaled_mask;
     else if (off & 0x1fful)
-        return invert ? off & 0x1fful : off & ~0x1fful;
+        return invert ? off & 0x1ff : off & ~(uint64_t)0x1ff;
     else
         return invert ? 0ul : off;
 }
@@ -468,7 +468,7 @@ static void arm64_strv(int sz_, int dst, int bas, uint64_t off)
     }
 }
 
-static void arm64_sym(int r, Sym *sym, unsigned long addend)
+static void arm64_sym(int r, Sym *sym, uint64_t addend)
 {
 #ifdef TCC_TARGET_PE
     /* PE links symbol addresses directly; there is no ELF-style GOT here. */
@@ -484,19 +484,19 @@ static void arm64_sym(int r, Sym *sym, unsigned long addend)
 #endif
     if (addend) {
         // add xr, xr, #addend
-	if (addend & 0xffful)
+	if (addend & 0xfff)
            o(ARM64_ADD_IMM | ARM64_SF(1) | ARM64_RN(r) | r |
              (addend & 0xfff) << 10);
-        if (addend > 0xffful) {
+        if (addend > 0xfff) {
             // add xr, xr, #addend, lsl #12
-	    if (addend & 0xfff000ul)
+	    if (addend & 0xfff000)
                 o(ARM64_ADD_IMM | ARM64_SF(1) | ARM64_SH(1) |
                   ARM64_RN(r) | r | ((addend >> 12) & 0xfff) << 10);
-            if (addend > 0xfffffful) {
+            if (addend > 0xffffff) {
 		/* very unlikely */
 		int t = r ? 0 : 1;
 		o(ARM64_STR_X_PRE | 0x001F0FE0U | t); /* str xt, [sp, #-16]! */
-		arm64_movimm(t, addend & ~0xfffffful); // use xt for addent
+		arm64_movimm(t, addend & ~(uint64_t)0xffffff); // use xt for addent
 		o(ARM64_ADD_REG | ARM64_SF(1) | ARM64_RM(t) | ARM64_RN(r) | r); /* add xr, xr, xt */
 		o(ARM64_LDR_X_POST | 0x000107E0U | t); /* ldr xt, [sp], #16 */
 	    }
@@ -1802,9 +1802,9 @@ static int arm64_gen_opic(int op, uint32_t l, int rev, uint64_t val,
         uint32_t s = l ? val >> 63 : val >> 31;
         val = s ? -val : val;
         val = l ? val : (uint32_t)val;
-        if (!(val & ~0xffful))
+        if (!(val & ~(uint64_t)0xfff))
             o(0x11000000 | l << 31 | s << 30 | x | a << 5 | val << 10);
-        else if (!(val & ~0xfff000ul))
+        else if (!(val & ~(uint64_t)0xfff000))
             o(0x11400000 | l << 31 | s << 30 | x | a << 5 | val >> 12 << 10);
         else {
             arm64_movimm(30, val); // use x30
