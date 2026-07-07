@@ -339,6 +339,10 @@ static int tcc_relocate_ex(TCCState *s1, void *ptr, unsigned ptr_diff)
 
     if (NULL == ptr) {
         s1->nb_errors = 0;
+        /* An in-memory image gets no PT_TLS segment, so thread-pointer
+           relative accesses would silently alias the host's TLS block. */
+        if (tdata_section->data_offset || tbss_section->data_offset)
+            return tcc_error_noabort("thread-local storage is not supported at run time");
 #ifdef TCC_TARGET_PE
         pe_output_file(s1, NULL);
 #else

@@ -2267,8 +2267,8 @@ static uint32_t macho_swap32(uint32_t x)
 // since we technically only need to call this once, we can just keep it around
 // it should be faster that way anyhow since it means we only call 
 // dlopen() just once
-char* xcode_select_sdkroot;
-bool xcode_select_loaded = false;
+static char* xcode_select_sdkroot;
+static int xcode_select_loaded;
 #ifdef TCC_TARGET_MACHO
 ST_FUNC char* tcc_search_darwin_framework(TCCState* s, const char* include_name) {
     // "<Security/Security.h>" 
@@ -2301,7 +2301,7 @@ ST_FUNC char* tcc_search_darwin_framework(TCCState* s, const char* include_name)
 ST_FUNC void tcc_add_macos_framework_path(TCCState* s, const char* framework_name, const char* base_path) {
     // if this is a system framework, we need to add it via /System/Library/Frameworks/
     char path_buffer[2048];
-    pstrcat(path_buffer, sizeof(path_buffer), "/System/Library/Frameworks/");
+    pstrcpy(path_buffer, sizeof(path_buffer), "/System/Library/Frameworks/");
     pstrcat(path_buffer, sizeof(path_buffer), framework_name);
     pstrcat(path_buffer, sizeof(path_buffer), ".framework/");
     pstrcat(path_buffer, sizeof(path_buffer), framework_name);
@@ -2343,7 +2343,7 @@ ST_FUNC void tcc_add_macos_sdkpath(TCCState* s)
         void* xcs = dlopen("libxcselect.dylib", RTLD_GLOBAL | RTLD_LAZY);
         int (*f)(unsigned int, char**) = dlsym(xcs, "xcselect_host_sdk_path");
         if (f) f(1, &xcode_select_sdkroot);
-        xcode_select_loaded = true;
+        xcode_select_loaded = 1;
     }
     
     char *pos = NULL;

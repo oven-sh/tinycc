@@ -4526,7 +4526,10 @@ do_decl:
                     expect("identifier");
                 next();
                 if (tok == TOK_ATTRIBUTE1 || tok == TOK_ATTRIBUTE2) {
-                    parse_attribute(&ad1);
+                    /* accept and ignore attributes on enumerators */
+                    AttributeDef ad2;
+                    memset(&ad2, 0, sizeof(AttributeDef));
+                    parse_attribute(&ad2);
                 }
                 if (tok == '=') {
                     next();
