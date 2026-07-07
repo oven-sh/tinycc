@@ -484,6 +484,12 @@ static int protect_pages(void *ptr, unsigned long length, int mode)
     DWORD old;
     if (!VirtualProtect(ptr, length, protect[mode], &old))
         return -1;
+# if defined TCC_TARGET_ARM64
+    /* Writing code then making it executable needs an explicit icache flush
+       on arm64; VirtualProtect alone is not documented to do it. */
+    if (mode == 0 || mode == 3)
+        FlushInstructionCache(GetCurrentProcess(), ptr, length);
+# endif
 #else
     static const unsigned char protect[] = {
         PROT_READ | PROT_EXEC,
