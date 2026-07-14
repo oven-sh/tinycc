@@ -464,6 +464,10 @@ static uint64_t sublp4095(uint64_t x) { return x - 4095; }
 static uint32_t subim503808(uint32_t x) { return x - -503808; }
 static uint64_t addp12345(uint64_t x) { return x + 12345; }
 static uint32_t subp12345(uint32_t x) { return x - 12345; }
+/* LLP64 guard: these drop the high bits (print 3e8) when arm64_gen_opic's
+   fits-in-immediate mask truncates to 32 bits on an LLP64-built tcc. */
+static uint64_t addlpbit49(uint64_t x) { return x + (1ll << 49); }
+static uint64_t addlp4g(uint64_t x) { return x + 0x100000000ll; }
 
 static uint32_t mvni(uint32_t x) { return 0xffffffff - x; }
 static uint64_t negl(uint64_t x) { return 0 - x; }
@@ -507,6 +511,8 @@ void opi(void)
     pll(subim503808(x));
     pll(addp12345(x));
     pll(subp12345(x));
+    pll(addlpbit49(x));
+    pll(addlp4g(x));
     pll(mvni(x));
     pll(negl(x));
     pll(rsbi123(x));
