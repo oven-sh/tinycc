@@ -24,6 +24,7 @@ const char hello[] = "Hello World!";
 
 char my_program[] =
 "#include <tcclib.h>\n" /* include the "Simple libc header for TCC" */
+"#include \"my_header.h\"\n" /* served from memory by open_file() */
 "extern int add(int a, int b);\n"
 "#ifdef _WIN32\n" /* dynamically linked data needs 'dllimport' */
 " __attribute__((dllimport))\n"
@@ -42,8 +43,35 @@ char my_program[] =
 "    printf(\"%s\\n\", hello);\n"
 "    printf(\"fib(%d) = %d\\n\", n, fib(n));\n"
 "    printf(\"add(%d, %d) = %d\\n\", n, 2 * n, add(n, 2 * n));\n"
+"    printf(\"twice(%d) = %d\\n\", n, twice(n));\n"
 "    return 0;\n"
 "}\n";
+
+/* these two files only exist in memory; open_file() hands them to tcc */
+const char my_header[] =
+"extern int twice(int n);\n";
+
+const char my_twice[] =
+"int twice(int n)\n"
+"{\n"
+"    return 2 * n;\n"
+"}\n";
+
+int open_file(void *opaque, const char *filename, const char **buf, unsigned long *len)
+{
+    if (!strcmp(filename, "my_header.h")) {
+        *buf = my_header;
+        *len = strlen(my_header);
+        return 0;
+    }
+    if (!strcmp(filename, "virtual/twice.c")) {
+        *buf = my_twice;
+        *len = strlen(my_twice);
+        return 0;
+    }
+    /* anything else (tcclib.h, ...) comes from the file system */
+    return -1;
+}
 
 int main(int argc, char **argv)
 {
@@ -59,6 +87,9 @@ int main(int argc, char **argv)
 
     /* set custom error/warning printer */
     tcc_set_error_func(s, stderr, handle_error);
+
+    /* serve some source files from memory */
+    tcc_set_open_func(s, NULL, open_file);
 
     /* if tcclib.h and libtcc1.a are not installed, where can we find them */
     for (i = 1; i < argc; ++i) {
@@ -77,6 +108,10 @@ int main(int argc, char **argv)
     tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
 
     if (tcc_compile_string(s, my_program) == -1)
+        return 1;
+
+    /* this file does not exist on disk, open_file() provides it */
+    if (tcc_add_file(s, "virtual/twice.c") == -1)
         return 1;
 
     /* as a test, we add symbols that the compiled program can use.

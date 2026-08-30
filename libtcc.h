@@ -30,6 +30,13 @@ LIBTCCAPI void tcc_set_lib_path(TCCState *s, const char *path);
 typedef void TCCErrorFunc(void *opaque, const char *msg);
 LIBTCCAPI void tcc_set_error_func(TCCState *s, void *error_opaque, TCCErrorFunc *error_func);
 
+/* set a callback that serves source files from memory (optional). It is
+   asked before open(2) for every C source and #include. To serve 'filename',
+   set *buf and *len and return 0; tcc copies the bytes before it returns to
+   the caller. Return -1 to fall back to the file system. */
+typedef int TCCOpenFunc(void *opaque, const char *filename, const char **buf, unsigned long *len);
+LIBTCCAPI void tcc_set_open_func(TCCState *s, void *open_opaque, TCCOpenFunc *open_func);
+
 /* set options as from command line (multiple supported) */
 LIBTCCAPI int tcc_set_options(TCCState *s, const char *str);
 

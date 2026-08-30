@@ -704,6 +704,20 @@ LIBTCCAPI void tcc_set_error_func(TCCState *s, void *error_opaque, TCCErrorFunc 
     s->error_func = error_func;
 }
 
+LIBTCCAPI void tcc_set_open_func(TCCState *s, void *open_opaque, TCCOpenFunc *open_func)
+{
+    s->open_opaque = open_opaque;
+    s->open_func = open_func;
+}
+
+/* ask the open callback for 'filename'. Return 0 if it served the file */
+static int tcc_open_from_memory(TCCState *s1, const char *filename, const char **buf, unsigned long *len)
+{
+    if (!s1->open_func)
+        return -1;
+    return s1->open_func(s1->open_opaque, filename, buf, len);
+}
+
 /* error without aborting current compilation */
 PUB_FUNC int _tcc_error_noabort(const char *fmt, ...)
 {
@@ -789,7 +803,15 @@ static int _tcc_open(TCCState *s1, const char *filename)
 
 ST_FUNC int tcc_open(TCCState *s1, const char *filename)
 {
-    int fd = _tcc_open(s1, filename);
+    const char *buf;
+    unsigned long len;
+    int fd;
+    if (tcc_open_from_memory(s1, filename, &buf, &len) == 0) {
+        tcc_open_bf(s1, filename, (int)len);
+        memcpy(file->buffer, buf, len);
+        return 0;
+    }
+    fd = _tcc_open(s1, filename);
     if (fd < 0)
         return -1;
     tcc_open_bf(s1, filename, 0);
@@ -797,8 +819,10 @@ ST_FUNC int tcc_open(TCCState *s1, const char *filename)
     return 0;
 }
 
-/* compile the file opened in 'file'. Return non zero if errors. */
-static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
+/* compile 'filename'. The source is 'str' (len bytes) when it is non-NULL,
+   otherwise it is read from 'fd'. Return non zero if errors. */
+static int tcc_compile(TCCState *s1, int filetype, const char *filename,
+                       const char *str, unsigned long len, int fd)
 {
     /* Here we enter the code section where we use the global variables for
        parsing and code generation (tccpp.c, tccgen.c, <target>-gen.c).
@@ -812,12 +836,11 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
 
     if (setjmp(s1->error_jmp_buf) == 0) {
 
-        if (fd == -1) {
-            int len = strlen(str);
-            tcc_open_bf(s1, "<string>", len);
+        if (str) {
+            tcc_open_bf(s1, filename, (int)len);
             memcpy(file->buffer, str, len);
         } else {
-            tcc_open_bf(s1, str, 0);
+            tcc_open_bf(s1, filename, 0);
             file->fd = fd;
         }
 
@@ -845,7 +868,7 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
 
 LIBTCCAPI int tcc_compile_string(TCCState *s, const char *str)
 {
-    return tcc_compile(s, s->filetype, str, -1);
+    return tcc_compile(s, s->filetype, "<string>", str, strlen(str), -1);
 }
 
 /* define a preprocessor symbol. value can be NULL, sym can be "sym=val" */
@@ -1232,6 +1255,16 @@ ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
         && (flags & AFF_TYPE_BIN))
         return 0;
 
+    /* sources may come from memory; binaries are always read from a fd */
+    if (0 == (flags & AFF_TYPE_BIN)) {
+        const char *buf;
+        unsigned long len;
+        if (tcc_open_from_memory(s1, filename, &buf, &len) == 0) {
+            dynarray_add(&s1->target_deps, &s1->nb_target_deps, tcc_strdup(filename));
+            return tcc_compile(s1, flags, filename, buf, len, -1);
+        }
+    }
+
     /* open the file */
     fd = _tcc_open(s1, filename);
     if (fd < 0) {
@@ -1244,7 +1277,7 @@ ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
         return tcc_add_binary(s1, flags, filename, fd);
 
     dynarray_add(&s1->target_deps, &s1->nb_target_deps, tcc_strdup(filename));
-    return tcc_compile(s1, flags, filename, fd);
+    return tcc_compile(s1, flags, filename, NULL, 0, fd);
 }
 
 LIBTCCAPI int tcc_add_file(TCCState *s, const char *filename)
