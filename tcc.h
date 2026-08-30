@@ -859,6 +859,10 @@ struct TCCState {
     jmp_buf error_jmp_buf;
     int nb_errors;
 
+    /* in-memory source files (see tcc_set_open_func) */
+    void *open_opaque;
+    int (*open_func)(void *opaque, const char *filename, const char **buf, unsigned long *len);
+
     /* output file for preprocessing (-E) */
     FILE *ppfp;
 
