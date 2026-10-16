@@ -243,6 +243,18 @@
                                   & -(__alignof__(type)))
     #define __builtin_va_arg(ap,type) (*(sizeof(type) > (2*__va_reg_size) ? *(type **)((ap += __va_reg_size) - __va_reg_size) : (ap = (va_list)(_tcc_align(ap,type) + (sizeof(type)+__va_reg_size - 1)& -__va_reg_size), (type *)(ap - ((sizeof(type)+ __va_reg_size - 1)& -__va_reg_size)))))
 
+#elif defined __loongarch__
+    /* LP64: 与 riscv 完全相同的 8 字节槽变参方案。
+       va_start 不在这里定义 —— 走 tccgen 的 TOK_builtin_va_start ->
+       gen_va_start()(用 gfunc_prolog 的寄存器转储区基址)。
+       原代码缺此分支, LoongArch 落进下面 i386 的 4 字节槽方案:
+       va_start 取 &last+8, va_arg 每次只前进 4 字节 -> 变参全读错 */
+    typedef char *__builtin_va_list;
+    #define __va_reg_size 8
+    #define _tcc_align(addr,type) (((unsigned long)addr + __alignof__(type) - 1) \
+                                  & -(__alignof__(type)))
+    #define __builtin_va_arg(ap,type) (*(sizeof(type) > (2*__va_reg_size) ? *(type **)((ap += __va_reg_size) - __va_reg_size) : (ap = (va_list)(_tcc_align(ap,type) + (sizeof(type)+__va_reg_size - 1)& -__va_reg_size), (type *)(ap - ((sizeof(type)+ __va_reg_size - 1)& -__va_reg_size)))))
+
 #else /* __i386__ */
     typedef char *__builtin_va_list;
     #define __builtin_va_start(ap,last) (ap = ((char *)&(last)) + ((sizeof(last)+3)&~3))

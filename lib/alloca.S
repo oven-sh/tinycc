@@ -145,4 +145,15 @@ _(alloca):
     add    a0, sp, zero
     ret
 
+/* ---------------------------------------------- */
+#elif defined __loongarch__
+
+.globl _(alloca)
+_(alloca):
+    sub.d     $sp, $sp, $a0
+    addi.d    $sp, $sp, -15
+    bstrins.d $sp, $zero, 3, 0      /* sp &= -16 (andi zero-extends) */
+    move      $a0, $sp
+    ret
+
 #endif

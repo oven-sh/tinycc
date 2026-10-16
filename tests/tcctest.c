@@ -1175,7 +1175,7 @@ void char_short_test()
     var4 = 0x11223344aa998877ULL;
     printf("promote char/short assign VA %d %d\n", var3 = var1 + 1, var3 = var4 + 1);
     printf("promote char/short cast VA %d %d\n", (signed char)(var1 + 1), (signed char)(var4 + 1));
-#if !defined __arm__ && !defined __riscv
+#if !defined __arm__ && !defined __riscv && !defined __loongarch__
     /* We can't really express GCC behaviour of return type promotion in
        the presence of undefined behaviour (like __csf is).  */
     var1 = csf(unsigned char,0x89898989);
@@ -4268,7 +4268,7 @@ void builtin_frame_address_test(void)
     char *fp0 = __builtin_frame_address(0);
 
     printf("str: %s\n", str);
-#ifndef __riscv // gcc dumps core. tcc, clang work
+#if !defined __riscv && !defined __loongarch__ // gcc dumps core. tcc, clang work
     bfa1(str-fp0);
 #endif
 #endif

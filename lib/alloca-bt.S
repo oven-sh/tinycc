@@ -197,4 +197,24 @@ _(__bound_alloca):
     ret
 
 /* ---------------------------------------------- */
+#elif defined __loongarch__
+
+.globl _(__bound_alloca)
+_(__bound_alloca):
+    move      $a1, $a0
+    sub.d     $sp, $sp, $a0
+    addi.d    $sp, $sp, -16
+    bstrins.d $sp, $zero, 3, 0      /* sp &= -16 */
+    move      $a0, $sp
+    addi.d    $sp, $sp, -16
+    st.d      $fp, $sp, 0
+    st.d      $ra, $sp, 8
+    bl        _(__bound_new_region) /* (a0, a1) */
+    ld.d      $fp, $sp, 0
+    ld.d      $ra, $sp, 8
+    addi.d    $sp, $sp, 16
+    move      $a0, $sp
+    ret
+
+/* ---------------------------------------------- */
 #endif

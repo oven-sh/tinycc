@@ -181,7 +181,7 @@
 #elif defined TCC_TARGET_ARM64
      DEF(TOK_builtin_va_start, "__builtin_va_start")
      DEF(TOK_builtin_va_arg, "__builtin_va_arg")
-#elif defined TCC_TARGET_RISCV64
+#elif defined TCC_TARGET_RISCV64 || defined TCC_TARGET_LOONGARCH64
      DEF(TOK_builtin_va_start, "__builtin_va_start")
 #endif
 
@@ -208,7 +208,7 @@
      DEF(TOK_pack, "pack")
 #if !defined(TCC_TARGET_I386) && !defined(TCC_TARGET_X86_64) && \
     !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_ARM64) && \
-    !defined(TCC_TARGET_RISCV64)
+    !defined(TCC_TARGET_RISCV64) && !defined(TCC_TARGET_LOONGARCH64)
      /* already defined for assembler */
      DEF(TOK_ASM_push, "push")
      DEF(TOK_ASM_pop, "pop")
@@ -314,7 +314,10 @@
 #ifdef TCC_TARGET_RISCV64
      DEF(TOK___riscv64_clear_cache, "__riscv64_clear_cache")
 #endif
-#if defined TCC_TARGET_ARM64 || defined TCC_TARGET_RISCV64
+#ifdef TCC_TARGET_LOONGARCH64
+     DEF(TOK___loongarch64_clear_cache, "__loongarch64_clear_cache")
+#endif
+#if defined TCC_TARGET_ARM64 || defined TCC_TARGET_RISCV64 || defined TCC_TARGET_LOONGARCH64
      DEF(TOK___addtf3, "__addtf3")
      DEF(TOK___subtf3, "__subtf3")
      DEF(TOK___multf3, "__multf3")
@@ -415,8 +418,11 @@
 #else
  DEF_ASMDIR(code64)
 #endif
-#if defined(TCC_TARGET_RISCV64)
+#if defined(TCC_TARGET_RISCV64) || defined(TCC_TARGET_LOONGARCH64)
  DEF_ASMDIR(option)
+#endif
+#if defined(TCC_TARGET_LOONGARCH64)
+ DEF_ASMDIR(dword)   /* GNU as on LoongArch: .dword = .quad (gcc emits it) */
 #endif
  DEF_ASMDIR(short)
  DEF_ASMDIR(long)
@@ -439,4 +445,8 @@
 
 #if defined TCC_TARGET_RISCV64
 #include "riscv64-tok.h"
+#endif
+
+#if defined TCC_TARGET_LOONGARCH64
+#include "loongarch64-tok.h"
 #endif

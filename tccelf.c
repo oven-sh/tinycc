@@ -205,9 +205,11 @@ ST_FUNC void tccelf_end_file(TCCState *s1)
             if (sym_bind == STB_LOCAL)
                 sym_bind = STB_GLOBAL;
 #ifndef TCC_TARGET_PE
-            if (sym_bind == STB_GLOBAL && s1->output_type == TCC_OUTPUT_OBJ) {
+            if (sym_bind == STB_GLOBAL && s1->output_type == TCC_OUTPUT_OBJ
+                && sym_type == STT_FUNC) {
                 /* undefined symbols with STT_FUNC are confusing gnu ld when
-                   linking statically to STT_GNU_IFUNC */
+                   linking statically to STT_GNU_IFUNC; STT_TLS must stay,
+                   GNU ld rejects a TLS definition met by a non-TLS reference */
                 sym_type = STT_NOTYPE;
             }
 #endif
@@ -1193,6 +1195,9 @@ static void relocate_section(TCCState *s1, Section *s, Section *sr)
     }
 #endif
 
+/* LoongArch link.c is self-contained (computes PCALA_HI20/LO12 directly
+   from the relocation value), so the RISC-V HI20/LO12 pairing state
+   (pcrel_hi_entries) is only maintained for RISC-V. */
 #ifdef TCC_TARGET_RISCV64
     dynarray_reset(&s1->pcrel_hi_entries, &s1->nb_pcrel_hi_entries);
 #endif
@@ -1236,7 +1241,7 @@ static int prepare_dynamic_rel(TCCState *s1, Section *sr)
     int count = 0;
 #if defined(TCC_TARGET_I386) || defined(TCC_TARGET_X86_64) || \
     defined(TCC_TARGET_ARM) || defined(TCC_TARGET_ARM64) || \
-    defined(TCC_TARGET_RISCV64)
+    defined(TCC_TARGET_RISCV64) || defined(TCC_TARGET_LOONGARCH64)
     ElfW_Rel *rel;
     for_each_elem(sr, 0, rel, ElfW_Rel) {
         int sym_index = ELFW(R_SYM)(rel->r_info);
@@ -1263,6 +1268,9 @@ static int prepare_dynamic_rel(TCCState *s1, Section *sr)
 #elif defined(TCC_TARGET_RISCV64)
         case R_RISCV_32:
         case R_RISCV_64:
+#elif defined(TCC_TARGET_LOONGARCH64)
+        case R_LARCH_32:
+        case R_LARCH_64:
 #endif
             count++;
             break;
@@ -2692,6 +2700,9 @@ static int tcc_output_elf(TCCState *s1, FILE *f, int phnum, ElfW(Phdr) *phdr)
 #elif defined TCC_TARGET_RISCV64
     /* XXX should be configurable */
     ehdr.e_flags = EF_RISCV_FLOAT_ABI_DOUBLE;
+#elif defined TCC_TARGET_LOONGARCH64
+    /* LP64D, object ABI v1 (the v2 relocation set), as gcc emits */
+    ehdr.e_flags = EF_LARCH_ABI_DOUBLE_FLOAT | EF_LARCH_OBJABI_V1;
 #endif
 
     if (file_type == TCC_OUTPUT_OBJ) {
@@ -3424,7 +3435,7 @@ invalid:
             ptr = s->data + offset;
             full_read(fd, ptr, size);
         }
-#if defined TCC_TARGET_ARM || defined TCC_TARGET_ARM64 || defined TCC_TARGET_RISCV64
+#if defined TCC_TARGET_ARM || defined TCC_TARGET_ARM64 || defined TCC_TARGET_RISCV64 || defined TCC_TARGET_LOONGARCH64
         /* align code sections to instruction lenght */
         /* This is needed if we compile a c file after this */
         if (s->sh_flags & SHF_EXECINSTR)
@@ -3534,6 +3545,15 @@ invalid:
 #elif defined TCC_TARGET_RISCV64
                     && type != R_RISCV_ALIGN
                     && type != R_RISCV_RELAX
+#elif defined TCC_TARGET_LOONGARCH64
+                    /* relax markers carry no symbol, like RISC-V's */
+                    && type != R_LARCH_RELAX
+                    && type != R_LARCH_MARK_LA
+                    && type != R_LARCH_MARK_PCREL
+                    && type != R_LARCH_DELETE
+                    && type != R_LARCH_ALIGN
+                    && type != R_LARCH_PCREL20_S2
+                    && type != R_LARCH_CFA
 #endif
                    ) {
                 invalid_reloc:

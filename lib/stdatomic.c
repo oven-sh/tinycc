@@ -89,7 +89,7 @@ bool ATOMIC(is_lock_free) (unsigned long size, const volatile void *ptr)
     case 1: ret = true; break;
     case 2: ret = true; break;
     case 4: ret = true; break;
-#if defined __x86_64__ || defined __aarch64__ || defined __riscv
+#if defined __x86_64__ || defined __aarch64__ || defined __riscv || defined __loongarch__
     case 8: ret = true; break;
 #else
     case 8: ret = false; break;

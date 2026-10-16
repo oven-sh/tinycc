@@ -53,6 +53,10 @@
 #include "riscv64-gen.c"
 #include "riscv64-link.c"
 #include "riscv64-asm.c"
+#elif defined(TCC_TARGET_LOONGARCH64)
+#include "loongarch64-gen.c"
+#include "loongarch64-link.c"
+#include "loongarch64-asm.c"
 #else
 #error unknown target
 #endif
@@ -1803,6 +1807,8 @@ static const char dumpmachine_str[] =
     "aarch64"
 #elif defined TCC_TARGET_RISCV64
     "riscv64"
+#elif defined TCC_TARGET_LOONGARCH64
+    "loongarch64"
 #endif
     "-"
 #ifdef TCC_TARGET_PE

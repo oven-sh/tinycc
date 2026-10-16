@@ -505,7 +505,7 @@ static int protect_pages(void *ptr, unsigned long length, int mode)
     if (mprotect(ptr, length, protect[mode]))
         return -1;
 /* XXX: BSD sometimes dump core with bad system call */
-# if (defined TCC_TARGET_ARM && !TARGETOS_BSD) || defined TCC_TARGET_ARM64 || defined TCC_TARGET_RISCV64
+# if (defined TCC_TARGET_ARM && !TARGETOS_BSD) || defined TCC_TARGET_ARM64 || defined TCC_TARGET_RISCV64 || defined TCC_TARGET_LOONGARCH64
     if (mode == 0 || mode == 3) {
         void __clear_cache(void *beginning, void *end);
         __clear_cache(ptr, (char *)ptr + length);
@@ -1325,6 +1325,9 @@ static void rt_getcontext(ucontext_t *uc, rt_frame *rc)
 #elif defined(__riscv)
     rc->ip = uc->uc_mcontext.__gregs[REG_PC];
     rc->fp = uc->uc_mcontext.__gregs[REG_S0];
+#elif defined(__loongarch__)
+    rc->ip = uc->uc_mcontext.__pc;
+    rc->fp = uc->uc_mcontext.__gregs[22]; /* $fp */
 #endif
 }
 
@@ -1511,7 +1514,9 @@ static int rt_get_caller_pc(addr_t *paddr, rt_frame *rc, int level)
     return 0;
 }
 
-#elif defined(__riscv)
+#elif defined(__riscv) || defined(__loongarch__)
+/* fp is the CFA on both, with ra at fp-8 and the caller's fp at fp-16
+   (tcc's prolog and gcc's alike) */
 static int rt_get_caller_pc(addr_t *paddr, rt_frame *rc, int level)
 {
     if (level == 0) {

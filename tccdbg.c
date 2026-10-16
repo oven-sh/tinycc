@@ -564,10 +564,26 @@ static int dwarf_get_section_sym(Section *s)
                        s->sh_num, NULL);
 }
 
-static void dwarf_reloc(Section *s, int sym, int rel)
+/* Emit a SIZE-byte field holding sym+VAL, relocated by REL.  tcc's own
+   linker adds the relocation to whatever the field holds, but an object
+   file is read by other linkers too: on RELA targets they take the addend
+   from r_addend alone and ignore the field, so VAL must go there (as
+   dwarf_strp already does) and the field stays 0.  Writing VAL into the
+   field with a zero addend made every FDE of a 'tcc -c' object start at
+   .text+0, and GNU ld rejected 2+ functions as "overlapping FDEs". */
+static void dwarf_reloc(Section *s, int sym, int rel, addr_t val, int size)
 {
     TCCState *s1 = s->s1;
+#if SHT_RELX == SHT_RELA
+    put_elf_reloca(symtab_section, s, s->data_offset, rel, sym, val);
+    val = 0;
+#else
     put_elf_reloca(symtab_section, s, s->data_offset, rel, sym, 0);
+#endif
+    if (size == 8)
+        dwarf_data8(s, val);
+    else
+        dwarf_data4(s, val);
 }
 
 static void free_str(struct dwarf_str_hash **str)
@@ -870,6 +886,16 @@ ST_FUNC void tcc_eh_frame_start(TCCState *s1)
     dwarf_data1(eh_frame_section, DW_CFA_def_cfa);
     dwarf_uleb128(eh_frame_section, 2); // r2 (sp)
     dwarf_uleb128(eh_frame_section, 0); // ofs 0
+#elif defined TCC_TARGET_LOONGARCH64
+    eh_frame_section->data[s1->eh_start + 8] = 3; // version = 3
+    dwarf_uleb128(eh_frame_section, 1); // code_alignment_factor
+    dwarf_sleb128(eh_frame_section, -8); // data_alignment_factor
+    dwarf_uleb128(eh_frame_section, 1); // return address column (r1=ra)
+    dwarf_uleb128(eh_frame_section, 1); // Augmentation len
+    dwarf_data1(eh_frame_section, FDE_ENCODING);
+    dwarf_data1(eh_frame_section, DW_CFA_def_cfa);
+    dwarf_uleb128(eh_frame_section, 3); // r3 (sp)
+    dwarf_uleb128(eh_frame_section, 0); // ofs 0
 #endif
     while ((eh_frame_section->data_offset - s1->eh_start) & 3)
 	dwarf_data1(eh_frame_section, DW_CFA_nop);
@@ -890,17 +916,18 @@ static void tcc_debug_frame_end(TCCState *s1, int size)
     dwarf_data4(eh_frame_section,
 		fde_start - s1->eh_start + 4); // CIE Pointer
 #if defined TCC_TARGET_I386
-    dwarf_reloc(eh_frame_section, eh_section_sym, R_386_PC32);
+    dwarf_reloc(eh_frame_section, eh_section_sym, R_386_PC32, func_ind, 4); // PC Begin
 #elif defined TCC_TARGET_X86_64
-    dwarf_reloc(eh_frame_section, eh_section_sym, R_X86_64_PC32);
+    dwarf_reloc(eh_frame_section, eh_section_sym, R_X86_64_PC32, func_ind, 4); // PC Begin
 #elif defined TCC_TARGET_ARM
-    dwarf_reloc(eh_frame_section, eh_section_sym, R_ARM_REL32);
+    dwarf_reloc(eh_frame_section, eh_section_sym, R_ARM_REL32, func_ind, 4); // PC Begin
 #elif defined TCC_TARGET_ARM64
-    dwarf_reloc(eh_frame_section, eh_section_sym, R_AARCH64_PREL32);
+    dwarf_reloc(eh_frame_section, eh_section_sym, R_AARCH64_PREL32, func_ind, 4); // PC Begin
 #elif defined TCC_TARGET_RISCV64
-    dwarf_reloc(eh_frame_section, eh_section_sym, R_RISCV_32_PCREL);
+    dwarf_reloc(eh_frame_section, eh_section_sym, R_RISCV_32_PCREL, func_ind, 4); // PC Begin
+#elif defined TCC_TARGET_LOONGARCH64
+    dwarf_reloc(eh_frame_section, eh_section_sym, R_LARCH_32_PCREL, func_ind, 4); // PC Begin
 #endif
-    dwarf_data4(eh_frame_section, func_ind); // PC Begin
     dwarf_data4(eh_frame_section, size); // PC Range
     dwarf_data1(eh_frame_section, 0); // Augmentation Length
 #if defined TCC_TARGET_I386
@@ -990,6 +1017,42 @@ static void tcc_debug_frame_end(TCCState *s1, int size)
     dwarf_data1(eh_frame_section, DW_CFA_advance_loc + 4);
     dwarf_data1(eh_frame_section, DW_CFA_def_cfa_offset);
     dwarf_uleb128(eh_frame_section, 0); // ofs 0
+#elif defined TCC_TARGET_LOONGARCH64
+    /* loongarch64-gen.c's frame: prolog (20 bytes)
+         addi.d sp, sp, -d ; st.d ra, sp, d-8-va ; st.d fp, sp, d-16-va ;
+         addi.d fp, sp, d-va (or a branch to the large-frame tail) ; nop
+       where va = bytes of varargs registers spilled just below the CFA, so
+       fp = CFA - va, ra at CFA-8-va, fp at CFA-16-va; epilog before ret:
+         addi.d sp, fp, -16 (sp = CFA-16-va) ; ld.d ra, sp, 8 ; ld.d fp, sp, 0 ;
+         addi.d sp, sp, 16+va (sp = CFA) ; ret.
+       The CIE's data alignment factor is -8, so offsets count 8-byte units. */
+    dwarf_data1(eh_frame_section, DW_CFA_advance_loc + 4);
+    dwarf_data1(eh_frame_section, DW_CFA_def_cfa_offset);
+    dwarf_uleb128(eh_frame_section, func_frame_size); // sp + d
+    dwarf_data1(eh_frame_section, DW_CFA_advance_loc + 8);
+    dwarf_data1(eh_frame_section, DW_CFA_offset + 1); // r1 (ra)
+    dwarf_uleb128(eh_frame_section, 1 + func_va_size / 8); // cfa-8-va
+    dwarf_data1(eh_frame_section, DW_CFA_offset + 22); // r22 (fp)
+    dwarf_uleb128(eh_frame_section, 2 + func_va_size / 8); // cfa-16-va
+    dwarf_data1(eh_frame_section, DW_CFA_advance_loc + 8);
+    dwarf_data1(eh_frame_section, DW_CFA_def_cfa);
+    dwarf_uleb128(eh_frame_section, 22); // r22 (fp)
+    dwarf_uleb128(eh_frame_section, func_va_size); // fp + va
+    dwarf_data1(eh_frame_section, DW_CFA_advance_loc4);
+    while (size >= 4 &&
+	   read32le(cur_text_section->data + func_ind + size - 4) != 0x4c000020)
+	size -= 4; /* jirl $zero, $ra, 0 = ret */
+    dwarf_data4(eh_frame_section, size - 36); // after 'addi.d sp, fp, -16'
+    dwarf_data1(eh_frame_section, DW_CFA_def_cfa);
+    dwarf_uleb128(eh_frame_section, 3); // r3 (sp)
+    dwarf_uleb128(eh_frame_section, 16 + func_va_size); // sp = CFA-16-va
+    dwarf_data1(eh_frame_section, DW_CFA_advance_loc + 4);
+    dwarf_data1(eh_frame_section, DW_CFA_restore + 1); // r1 (ra)
+    dwarf_data1(eh_frame_section, DW_CFA_advance_loc + 4);
+    dwarf_data1(eh_frame_section, DW_CFA_restore + 22); // r22 (fp)
+    dwarf_data1(eh_frame_section, DW_CFA_advance_loc + 4);
+    dwarf_data1(eh_frame_section, DW_CFA_def_cfa_offset);
+    dwarf_uleb128(eh_frame_section, 0); // sp = CFA
 #endif
     while ((eh_frame_section->data_offset - fde_start) & 3)
 	dwarf_data1(eh_frame_section, DW_CFA_nop);
@@ -1188,12 +1251,10 @@ ST_FUNC void tcc_debug_start(TCCState *s1)
             if (s1->dwarf >= 5) {
                 dwarf_data1(dwarf_info_section, DW_UT_compile); // unit type
                 dwarf_data1(dwarf_info_section, PTR_SIZE);
-                dwarf_reloc(dwarf_info_section, dwarf_sym.abbrev, R_DATA_32DW);
-                dwarf_data4(dwarf_info_section, start_abbrev);
+                dwarf_reloc(dwarf_info_section, dwarf_sym.abbrev, R_DATA_32DW, start_abbrev, 4);
             }
             else {
-                dwarf_reloc(dwarf_info_section, dwarf_sym.abbrev, R_DATA_32DW);
-                dwarf_data4(dwarf_info_section, start_abbrev);
+                dwarf_reloc(dwarf_info_section, dwarf_sym.abbrev, R_DATA_32DW, start_abbrev, 4);
                 dwarf_data1(dwarf_info_section, PTR_SIZE);
             }
 
@@ -1202,16 +1263,14 @@ ST_FUNC void tcc_debug_start(TCCState *s1)
             dwarf_data1(dwarf_info_section, s1->cversion == 201112 ? DW_LANG_C11 : DW_LANG_C99);
             dwarf_line_strp(dwarf_info_section, filename);
             dwarf_line_strp(dwarf_info_section, buf);
-            dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR);
+            dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR, ind, PTR_SIZE); // low pc
 #if PTR_SIZE == 4
-            dwarf_data4(dwarf_info_section, ind); // low pc
             dwarf_data4(dwarf_info_section, 0); // high pc
 #else
-            dwarf_data8(dwarf_info_section, ind); // low pc
             dwarf_data8(dwarf_info_section, 0); // high pc
 #endif
-            dwarf_reloc(dwarf_info_section, dwarf_sym.line, R_DATA_32DW);
-            dwarf_data4(dwarf_info_section, dwarf_line_section->data_offset); // stmt_list
+            dwarf_reloc(dwarf_info_section, dwarf_sym.line, R_DATA_32DW,
+                        dwarf_line_section->data_offset, 4); // stmt_list
 
             /* dwarf_line */
             dwarf_line.start = dwarf_line_section->data_offset;
@@ -1318,8 +1377,7 @@ ST_FUNC void tcc_debug_end(TCCState *s1)
 	start_aranges = dwarf_aranges_section->data_offset;
 	dwarf_data4(dwarf_aranges_section, 0); // size
 	dwarf_data2(dwarf_aranges_section, 2); // version
-	dwarf_reloc(dwarf_aranges_section, dwarf_sym.info, R_DATA_32DW);
-	dwarf_data4(dwarf_aranges_section, 0); // dwarf_info
+	dwarf_reloc(dwarf_aranges_section, dwarf_sym.info, R_DATA_32DW, 0, 4); // dwarf_info
 #if PTR_SIZE == 4
 	dwarf_data1(dwarf_aranges_section, 4); // address size
 #else
@@ -1327,14 +1385,12 @@ ST_FUNC void tcc_debug_end(TCCState *s1)
 #endif
 	dwarf_data1(dwarf_aranges_section, 0); // segment selector size
 	dwarf_data4(dwarf_aranges_section, 0); // padding
-	dwarf_reloc(dwarf_aranges_section, section_sym, R_DATA_PTR);
+	dwarf_reloc(dwarf_aranges_section, section_sym, R_DATA_PTR, 0, PTR_SIZE); // Begin
 #if PTR_SIZE == 4
-	dwarf_data4(dwarf_aranges_section, 0); // Begin
 	dwarf_data4(dwarf_aranges_section, text_size); // End
 	dwarf_data4(dwarf_aranges_section, 0); // End list
 	dwarf_data4(dwarf_aranges_section, 0); // End list
 #else
-	dwarf_data8(dwarf_aranges_section, 0); // Begin
 	dwarf_data8(dwarf_aranges_section, text_size); // End
 	dwarf_data8(dwarf_aranges_section, 0); // End list
 	dwarf_data8(dwarf_aranges_section, 0); // End list
@@ -1397,7 +1453,9 @@ ST_FUNC void tcc_debug_end(TCCState *s1)
 	write32le(&dwarf_line_section->data[dwarf_line.start + 6 + i],
 		  dwarf_line_section->data_offset - dwarf_line.start - (10 + i));
 	section_ptr_add(dwarf_line_section, 3);
-	dwarf_reloc(dwarf_line_section, section_sym, R_DATA_PTR);
+	/* DW_LNE_set_address operand: line_data carries 0 there (text start) */
+	put_elf_reloca(symtab_section, dwarf_line_section, dwarf_line_section->data_offset,
+		       R_DATA_PTR, section_sym, 0);
 	ptr = section_ptr_add(dwarf_line_section, dwarf_line.line_size - 3);
 	memmove(ptr - 3, dwarf_line.line_data, dwarf_line.line_size);
 	tcc_free(dwarf_line.line_data);
@@ -2220,11 +2278,12 @@ static void tcc_debug_finish (TCCState *s1, struct _debug_info *cur)
                     dwarf_data1(dwarf_info_section, PTR_SIZE + 1);
                     dwarf_data1(dwarf_info_section, DW_OP_addr);
 		    if (s->type == N_STSYM)
-		        dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR);
+		        dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR, s->value, PTR_SIZE);
+		    else
 #if PTR_SIZE == 4
-                    dwarf_data4(dwarf_info_section, s->value);
+                        dwarf_data4(dwarf_info_section, s->value);
 #else
-                    dwarf_data8(dwarf_info_section, s->value);
+                        dwarf_data8(dwarf_info_section, s->value);
 #endif
 		}
 		else {
@@ -2239,12 +2298,11 @@ static void tcc_debug_finish (TCCState *s1, struct _debug_info *cur)
             dwarf_data1(dwarf_info_section,
 			cur->child ? DWARF_ABBREV_LEXICAL_BLOCK
 			           : DWARF_ABBREV_LEXICAL_EMPTY_BLOCK);
-            dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR);
+            dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR,
+                        func_ind + cur->start, PTR_SIZE);
 #if PTR_SIZE == 4
-            dwarf_data4(dwarf_info_section, func_ind + cur->start);
             dwarf_data4(dwarf_info_section, cur->end - cur->start);
 #else
-            dwarf_data8(dwarf_info_section, func_ind + cur->start);
             dwarf_data8(dwarf_info_section, cur->end - cur->start);
 #endif
             tcc_debug_finish (s1, cur->child);
@@ -2386,12 +2444,10 @@ ST_FUNC void tcc_debug_funcend(TCCState *s1, int size)
         dwarf_uleb128(dwarf_info_section, dwarf_info.line);
 	tcc_debug_check_forw(s1, sym->type.ref, dwarf_info_section->data_offset);
         dwarf_data4(dwarf_info_section, n_debug_info - dwarf_info.start);
-        dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR);
+        dwarf_reloc(dwarf_info_section, section_sym, R_DATA_PTR, func_ind, PTR_SIZE); // low_pc
 #if PTR_SIZE == 4
-        dwarf_data4(dwarf_info_section, func_ind); // low_pc
         dwarf_data4(dwarf_info_section, size); // high_pc
 #else
-        dwarf_data8(dwarf_info_section, func_ind); // low_pc
         dwarf_data8(dwarf_info_section, size); // high_pc
 #endif
         func_sib = dwarf_info_section->data_offset;
@@ -2407,6 +2463,8 @@ ST_FUNC void tcc_debug_funcend(TCCState *s1, int size)
         dwarf_data1(dwarf_info_section, DW_OP_reg29); // reg 29
 #elif defined TCC_TARGET_RISCV64
         dwarf_data1(dwarf_info_section, DW_OP_reg8); // r8(s0)
+#elif defined TCC_TARGET_LOONGARCH64
+        dwarf_data1(dwarf_info_section, DW_OP_reg22); // r22(fp)
 #else
         dwarf_data1(dwarf_info_section, DW_OP_call_frame_cfa);
 #endif
@@ -2582,7 +2640,7 @@ ST_FUNC void tcc_tcov_block_begin(TCCState *s1)
         sv.sym = &label;
 #if defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64 || \
     defined TCC_TARGET_ARM || defined TCC_TARGET_ARM64 || \
-    defined TCC_TARGET_RISCV64
+    defined TCC_TARGET_RISCV64 || defined TCC_TARGET_LOONGARCH64
         gen_increment_tcov (&sv);
 #else
         vpushv(&sv);

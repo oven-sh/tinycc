@@ -268,6 +268,7 @@ typedef struct
 #define EM_TILEPRO	188		/* Tilera TILEPro */
 #define EM_TILEGX	191		/* Tilera TILE-Gx */
 #define EM_RISCV	243	        /* RISC-V */
+#define EM_LOONGARCH	258	/* LoongArch */
 #define EM_NUM		253
 
 /* If it is necessary to assign new unofficial EM_* values, please
@@ -3320,6 +3321,143 @@ typedef Elf32_Addr Elf32_Conflict;
 #define R_RISCV_SUB_ULEB128	61
 
 #define R_RISCV_NUM		62
+
+/* LoongArch ELF Flags */
+#define EF_LARCH_ABI_MODIFIER_MASK  0x07
+#define EF_LARCH_ABI_SOFT_FLOAT     0x01
+#define EF_LARCH_ABI_SINGLE_FLOAT   0x02
+#define EF_LARCH_ABI_DOUBLE_FLOAT   0x03
+#define EF_LARCH_OBJABI_V1          0x40
+
+/* LoongArch specific dynamic relocations */
+#define R_LARCH_NONE		0
+#define R_LARCH_32		1
+#define R_LARCH_64		2
+#define R_LARCH_RELATIVE	3
+#define R_LARCH_COPY		4
+#define R_LARCH_JUMP_SLOT	5
+#define R_LARCH_TLS_DTPMOD32	6
+#define R_LARCH_TLS_DTPMOD64	7
+#define R_LARCH_TLS_DTPREL32	8
+#define R_LARCH_TLS_DTPREL64	9
+#define R_LARCH_TLS_TPREL32	10
+#define R_LARCH_TLS_TPREL64	11
+#define R_LARCH_IRELATIVE	12
+#define R_LARCH_TLS_DESC32	13
+#define R_LARCH_TLS_DESC64	14
+
+/* Reserved for future relocs that the dynamic linker must understand.  */
+
+/* used by the static linker for relocating .text.  */
+#define R_LARCH_MARK_LA  20
+#define R_LARCH_MARK_PCREL  21
+#define R_LARCH_SOP_PUSH_PCREL  22
+#define R_LARCH_SOP_PUSH_ABSOLUTE  23
+#define R_LARCH_SOP_PUSH_DUP  24
+#define R_LARCH_SOP_PUSH_GPREL  25
+#define R_LARCH_SOP_PUSH_TLS_TPREL  26
+#define R_LARCH_SOP_PUSH_TLS_GOT  27
+#define R_LARCH_SOP_PUSH_TLS_GD  28
+#define R_LARCH_SOP_PUSH_PLT_PCREL  29
+#define R_LARCH_SOP_ASSERT  30
+#define R_LARCH_SOP_NOT  31
+#define R_LARCH_SOP_SUB  32
+#define R_LARCH_SOP_SL  33
+#define R_LARCH_SOP_SR  34
+#define R_LARCH_SOP_ADD  35
+#define R_LARCH_SOP_AND  36
+#define R_LARCH_SOP_IF_ELSE  37
+#define R_LARCH_SOP_POP_32_S_10_5  38
+#define R_LARCH_SOP_POP_32_U_10_12  39
+#define R_LARCH_SOP_POP_32_S_10_12  40
+#define R_LARCH_SOP_POP_32_S_10_16  41
+#define R_LARCH_SOP_POP_32_S_10_16_S2  42
+#define R_LARCH_SOP_POP_32_S_5_20  43
+#define R_LARCH_SOP_POP_32_S_0_5_10_16_S2  44
+#define R_LARCH_SOP_POP_32_S_0_10_10_16_S2  45
+#define R_LARCH_SOP_POP_32_U  46
+
+/* used by the static linker for relocating non .text.  */
+#define R_LARCH_ADD8  47
+#define R_LARCH_ADD16  48
+#define R_LARCH_ADD24  49
+#define R_LARCH_ADD32  50
+#define R_LARCH_ADD64  51
+#define R_LARCH_SUB8  52
+#define R_LARCH_SUB16  53
+#define R_LARCH_SUB24  54
+#define R_LARCH_SUB32  55
+#define R_LARCH_SUB64  56
+#define R_LARCH_GNU_VTINHERIT  57
+#define R_LARCH_GNU_VTENTRY  58
+
+/* reserved 59-63 */
+
+#define R_LARCH_B16 64
+#define R_LARCH_B21 65
+#define R_LARCH_B26 66
+#define R_LARCH_ABS_HI20 67
+#define R_LARCH_ABS_LO12 68
+#define R_LARCH_ABS64_LO20 69
+#define R_LARCH_ABS64_HI12 70
+#define R_LARCH_PCALA_HI20 71
+#define R_LARCH_PCALA_LO12 72
+#define R_LARCH_PCALA64_LO20 73
+#define R_LARCH_PCALA64_HI12 74
+#define R_LARCH_GOT_PC_HI20 75
+#define R_LARCH_GOT_PC_LO12 76
+#define R_LARCH_GOT64_PC_LO20 77
+#define R_LARCH_GOT64_PC_HI12 78
+#define R_LARCH_GOT_HI20 79
+#define R_LARCH_GOT_LO12 80
+#define R_LARCH_GOT64_LO20 81
+#define R_LARCH_GOT64_HI12 82
+#define R_LARCH_TLS_LE_HI20 83
+#define R_LARCH_TLS_LE_LO12 84
+#define R_LARCH_TLS_LE64_LO20 85
+#define R_LARCH_TLS_LE64_HI12 86
+#define R_LARCH_TLS_IE_PC_HI20 87
+#define R_LARCH_TLS_IE_PC_LO12 88
+#define R_LARCH_TLS_IE64_PC_LO20 89
+#define R_LARCH_TLS_IE64_PC_HI12 90
+#define R_LARCH_TLS_IE_HI20 91
+#define R_LARCH_TLS_IE_LO12 92
+#define R_LARCH_TLS_IE64_LO20 93
+#define R_LARCH_TLS_IE64_HI12 94
+#define R_LARCH_TLS_LD_PC_HI20 95
+#define R_LARCH_TLS_LD_HI20 96
+#define R_LARCH_TLS_GD_PC_HI20 97
+#define R_LARCH_TLS_GD_HI20 98
+#define R_LARCH_32_PCREL 99
+#define R_LARCH_RELAX 100
+#define R_LARCH_DELETE 101
+#define R_LARCH_ALIGN 102
+#define R_LARCH_PCREL20_S2 103
+#define R_LARCH_CFA 104
+#define R_LARCH_ADD6 105
+#define R_LARCH_SUB6 106
+#define R_LARCH_ADD_ULEB128 107
+#define R_LARCH_SUB_ULEB128 108
+#define R_LARCH_64_PCREL 109
+#define R_LARCH_CALL36 110
+#define R_LARCH_TLS_DESC_PC_HI20 111
+#define R_LARCH_TLS_DESC_PC_LO12 112
+#define R_LARCH_TLS_DESC64_PC_LO20 113
+#define R_LARCH_TLS_DESC64_PC_HI12 114
+#define R_LARCH_TLS_DESC_HI20 115
+#define R_LARCH_TLS_DESC_LO12 116
+#define R_LARCH_TLS_DESC64_LO20 117
+#define R_LARCH_TLS_DESC64_HI12 118
+#define R_LARCH_TLS_DESC_LD 119
+#define R_LARCH_TLS_DESC_CALL 120
+#define R_LARCH_TLS_LE_HI20_R 121
+#define R_LARCH_TLS_LE_ADD_R 122
+#define R_LARCH_TLS_LE_LO12_R 123
+#define R_LARCH_TLS_LD_PCREL20_S2 124
+#define R_LARCH_TLS_GD_PCREL20_S2 125
+#define R_LARCH_TLS_DESC_PCREL20_S2 126
+
+#define R_LARCH_NUM		127
 
 
 #endif	/* elf.h */

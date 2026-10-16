@@ -192,6 +192,8 @@ static const char version[] =
         "AArch64"
 #elif defined TCC_TARGET_RISCV64
         "riscv64"
+#elif defined TCC_TARGET_LOONGARCH64
+        "loongarch64"
 #endif
 #ifdef TCC_TARGET_PE
         " Windows"

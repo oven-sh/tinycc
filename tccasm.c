@@ -565,6 +565,9 @@ static void asm_parse_directive(TCCState *s1, int global)
         }
         ind += size;
         break;
+#ifdef TCC_TARGET_LOONGARCH64
+    case TOK_ASMDIR_dword:
+#endif
     case TOK_ASMDIR_quad:
 #if PTR_SIZE == 8
 	size = 8;

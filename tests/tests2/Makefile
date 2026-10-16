@@ -19,7 +19,7 @@ ifeq (,$(filter i386 x86_64,$(ARCH)))
  SKIP += 85_asm-outside-function.test # x86 asm
  SKIP += 127_asm_goto.test    # hardcodes x86 asm
 endif
-ifeq (,$(filter x86_64 riscv64 arm64 i386,$(ARCH)))
+ifeq (,$(filter x86_64 riscv64 arm64 i386 loongarch64,$(ARCH)))
  SKIP += 144_tls.test # TLS only implemented on these architectures so far
 endif
 ifeq ($(CONFIG_backtrace),no)

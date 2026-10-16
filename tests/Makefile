@@ -316,6 +316,7 @@ CROSS-TGTS = \
  arm64-NetBSD \
  arm64-OpenBSD \
  riscv64 \
+ loongarch64 \
  c67
 
 define CROSS-COMPILE
