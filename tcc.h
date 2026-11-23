@@ -1252,7 +1252,9 @@ PUB_FUNC void *tcc_realloc_debug(void *ptr, unsigned long size, const char *file
 PUB_FUNC char *tcc_strdup_debug(const char *str, const char *file, int line);
 #endif
 
+#ifdef _WIN32
 ST_FUNC void libc_free(void *ptr);
+#endif
 /* defined to be not used */
 #define free(p) use_tcc_free(p)
 #define malloc(s) use_tcc_malloc(s)
