@@ -25,6 +25,9 @@ const char hello[] = "Hello World!";
 char my_program[] =
 "#include <tcclib.h>\n" /* include the "Simple libc header for TCC" */
 "#include \"my_header.h\"\n" /* served from memory by open_file() */
+"#if __has_include(\"virtual/no_such_header.h\")\n" /* open_file() says there is none */
+"#error a file that the open callback does not have was found\n"
+"#endif\n"
 "extern int add(int a, int b);\n"
 "#ifdef _WIN32\n" /* dynamically linked data needs 'dllimport' */
 " __attribute__((dllimport))\n"
@@ -69,6 +72,9 @@ int open_file(void *opaque, const char *filename, const char **buf, unsigned lon
         *len = strlen(my_twice);
         return 0;
     }
+    /* nothing else is below virtual/, whatever the file system has there */
+    if (!strncmp(filename, "virtual/", 8))
+        return 1;
     /* anything else (tcclib.h, ...) comes from the file system */
     return -1;
 }

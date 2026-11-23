@@ -710,7 +710,8 @@ LIBTCCAPI void tcc_set_open_func(TCCState *s, void *open_opaque, TCCOpenFunc *op
     s->open_func = open_func;
 }
 
-/* ask the open callback for 'filename'. Return 0 if it served the file */
+/* ask the open callback for 'filename'. Return 0 if it served the file, 1 if
+   the file does not exist and the file system must not be asked, else -1 */
 static int tcc_open_from_memory(TCCState *s1, const char *filename, const char **buf, unsigned long *len)
 {
     if (!s1->open_func)
@@ -805,12 +806,14 @@ ST_FUNC int tcc_open(TCCState *s1, const char *filename)
 {
     const char *buf;
     unsigned long len;
-    int fd;
-    if (tcc_open_from_memory(s1, filename, &buf, &len) == 0) {
+    int fd = tcc_open_from_memory(s1, filename, &buf, &len);
+    if (fd == 0) {
         tcc_open_bf(s1, filename, (int)len);
         memcpy(file->buffer, buf, len);
         return 0;
     }
+    if (fd > 0)
+        return -1;
     fd = _tcc_open(s1, filename);
     if (fd < 0)
         return -1;
@@ -1256,17 +1259,19 @@ ST_FUNC int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
         return 0;
 
     /* sources may come from memory; binaries are always read from a fd */
+    fd = -1;
     if (0 == (flags & AFF_TYPE_BIN)) {
         const char *buf;
         unsigned long len;
-        if (tcc_open_from_memory(s1, filename, &buf, &len) == 0) {
+        fd = tcc_open_from_memory(s1, filename, &buf, &len);
+        if (fd == 0) {
             dynarray_add(&s1->target_deps, &s1->nb_target_deps, tcc_strdup(filename));
             return tcc_compile(s1, flags, filename, buf, len, -1);
         }
     }
 
-    /* open the file */
-    fd = _tcc_open(s1, filename);
+    /* open the file, unless the callback said that there is none */
+    fd = fd > 0 ? -1 : _tcc_open(s1, filename);
     if (fd < 0) {
         if (flags & AFF_PRINT_ERROR)
             tcc_error_noabort("file '%s' not found", filename);
