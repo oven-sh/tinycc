@@ -3,13 +3,14 @@ name: build and test
 on:
   push:
     branches: [ mob ]
+  pull_request:
 
 jobs:
   test-x86_64-linux:
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: make & test tcc (x86_64-linux)
       run: ./configure && make && make test -k
 
@@ -17,7 +18,7 @@ jobs:
     runs-on: macos-15-intel
     timeout-minutes: 2
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: make & test tcc (x86_64-osx)
       run: ./configure && make && make test -k
 
@@ -25,7 +26,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 2
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: make & test tcc (aarch64-osx)
       run: ./configure && make && make test -k
 
@@ -33,7 +34,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 6
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: build tcc (x86_64-win32)
       shell: cmd
       run: |
@@ -50,7 +51,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 6
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: build tcc (i386-win32)
       shell: cmd
       run: |
@@ -67,7 +68,7 @@ jobs:
     runs-on: windows-11-arm
     timeout-minutes: 6
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: build and test (arm64-win32)
       shell: cmd
       run: |
@@ -82,8 +83,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 8
     steps:
-    - uses: actions/checkout@v4
-    - uses: uraimo/run-on-arch-action@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: uraimo/run-on-arch-action@fa1f3e7de95534497266c7265950b5188355fbfb # v3.2.1
       name: make & test tcc (armv7-linux)
       with:
         arch: armv7
@@ -100,8 +101,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 8
     steps:
-    - uses: actions/checkout@v4
-    - uses: uraimo/run-on-arch-action@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: uraimo/run-on-arch-action@fa1f3e7de95534497266c7265950b5188355fbfb # v3.2.1
       name: make & test tcc (aarch64-linux)
       with:
         arch: aarch64
@@ -118,8 +119,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 8
     steps:
-    - uses: actions/checkout@v4
-    - uses: uraimo/run-on-arch-action@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: uraimo/run-on-arch-action@fa1f3e7de95534497266c7265950b5188355fbfb # v3.2.1
       name: make & test tcc (riscv64-linux)
       with:
         arch: riscv64
@@ -132,12 +133,12 @@ jobs:
             echo "::endgroup::" # flatten 'run container'
             ./configure && make && make test -k
 
-  test-riscv64-linux-native:
-    runs-on: ubuntu-24.04-riscv
-    timeout-minutes: 8
-    steps:
-    - uses: actions/checkout@v4
-    - name: make & test tcc (riscv64-linux native)
-      run: |
-        uname -m  # riscv64
-        ./configure && make && make test -k
+#  test-riscv64-linux-native:
+#    runs-on: ubuntu-24.04-riscv
+#    timeout-minutes: 8
+#    steps:
+#    - uses: actions/checkout@v4
+#    - name: make & test tcc (riscv64-linux native)
+#      run: |
+#        uname -m  # riscv64
+#        ./configure && make && make test -k
