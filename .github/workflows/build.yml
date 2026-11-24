@@ -1,5 +1,8 @@
 name: build and test
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ mob ]
@@ -11,6 +14,8 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - name: make & test tcc (x86_64-linux)
       run: ./configure && make && make test -k
 
@@ -19,6 +24,8 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - name: make & test tcc (x86_64-osx)
       run: ./configure && make && make test -k
 
@@ -27,6 +34,8 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - name: make & test tcc (aarch64-osx)
       run: ./configure && make && make test -k
 
@@ -35,6 +44,8 @@ jobs:
     timeout-minutes: 6
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - name: build tcc (x86_64-win32)
       shell: cmd
       run: |
@@ -52,6 +63,8 @@ jobs:
     timeout-minutes: 6
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - name: build tcc (i386-win32)
       shell: cmd
       run: |
@@ -69,6 +82,8 @@ jobs:
     timeout-minutes: 6
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - name: build and test (arm64-win32)
       shell: cmd
       run: |
@@ -84,12 +99,13 @@ jobs:
     timeout-minutes: 8
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - uses: uraimo/run-on-arch-action@fa1f3e7de95534497266c7265950b5188355fbfb # v3.2.1
       name: make & test tcc (armv7-linux)
       with:
         arch: armv7
         distro: ubuntu22.04
-        githubToken: ${{ github.token }}
         install: |
           apt-get update -q -y
           apt-get install -q -y gcc make
@@ -102,12 +118,13 @@ jobs:
     timeout-minutes: 8
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - uses: uraimo/run-on-arch-action@fa1f3e7de95534497266c7265950b5188355fbfb # v3.2.1
       name: make & test tcc (aarch64-linux)
       with:
         arch: aarch64
         distro: ubuntu24.04
-        githubToken: ${{ github.token }}
         install: |
           apt-get update -q -y
           apt-get install -q -y gcc make
@@ -120,12 +137,13 @@ jobs:
     timeout-minutes: 8
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     - uses: uraimo/run-on-arch-action@fa1f3e7de95534497266c7265950b5188355fbfb # v3.2.1
       name: make & test tcc (riscv64-linux)
       with:
         arch: riscv64
         distro: ubuntu22.04
-        githubToken: ${{ github.token }}
         install: |
           apt-get update -q -y
           apt-get install -q -y gcc make
