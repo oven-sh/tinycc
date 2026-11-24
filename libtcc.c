@@ -259,10 +259,12 @@ static void *default_reallocator(void *ptr, unsigned long size)
     return ptr1;
 }
 
+#ifdef _WIN32
 ST_FUNC void libc_free(void *ptr)
 {
     free(ptr);
 }
+#endif
 
 /* defined to be not used */
 #define free(p) use_tcc_free(p)
@@ -496,6 +498,7 @@ PUB_FUNC void tcc_memcheck(int d)
 #endif
 
 /* for #pragma once */
+#ifdef _WIN32
 ST_FUNC int normalized_PATHCMP(const char *f1, const char *f2)
 {
     char *p1, *p2;
@@ -509,6 +512,20 @@ ST_FUNC int normalized_PATHCMP(const char *f1, const char *f2)
     }
     return ret;
 }
+#else
+# include <limits.h> /* PATH_MAX */
+/* No realpath(path, NULL): libc would allocate the result, and the free()
+   that an embedding program links can belong to another allocator.
+   No inlining: keep the buffers out of search_cached_include(). */
+ST_FUNC __attribute__((__noinline__))
+int normalized_PATHCMP(const char *f1, const char *f2)
+{
+    char p1[PATH_MAX], p2[PATH_MAX];
+    if (realpath(f1, p1) && realpath(f2, p2))
+        return PATHCMP(p1, p2);
+    return 1;
+}
+#endif
 
 /********************************************************/
 /* dynarrays */
